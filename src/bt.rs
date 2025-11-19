@@ -1,4 +1,4 @@
-use crate::NodeHandle;
+use crate::{NodeHandle, NodeType};
 
 pub mod handle;
 pub mod nodes;
@@ -31,6 +31,25 @@ impl BehaviorTree {
     }
 
     pub(crate) async fn search_start(&self) -> Vec<NodeHandle> {
-        vec![]
+        self.rec_search_start(self.root_node.clone(), vec![])
+    }
+
+    fn rec_search_start(&self, mut node: NodeHandle, mut trace: Vec<NodeHandle>) -> Vec<NodeHandle> {
+        match node.element {
+            NodeType::Action | NodeType::Condition => {
+                trace.push(node.clone());
+                trace
+            },
+            NodeType::Fallback | NodeType::Sequence => {
+                println!("{:?}", node.name);
+                println!("{:?}", node.id);
+                if let Some(child) = node.get_first_child() {
+                    trace.push(node.clone());
+                    self.rec_search_start(child, trace)
+                } else {
+                    panic!("Found a selector without a child");
+                }
+            }
+        }
     }
 }

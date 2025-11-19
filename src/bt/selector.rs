@@ -28,10 +28,6 @@ impl Sequence {
 
         let child_names = children.iter().map(|x| x.name.clone()).collect();
         let child_ids = children.iter().map(|x| x.id.clone()).collect();
-        let mut handles = vec![];
-        for child in children.iter_mut() {
-            handles.append(&mut child.take_handles());
-        }
 
         NodeHandle::new(
             parent_tx,
@@ -40,7 +36,7 @@ impl Sequence {
             "Sequence",
             child_names,
             child_ids,
-            handles,
+            children,
         )
     }
 }
@@ -59,10 +55,6 @@ impl Fallback {
 
         let child_names = children.iter().map(|x| x.name.clone()).collect();
         let child_ids = children.iter().map(|x| x.id.clone()).collect();
-        let mut handles = vec![];
-        for child in children.iter_mut() {
-            handles.append(&mut child.take_handles());
-        }
 
         NodeHandle::new(
             parent_tx,
@@ -71,7 +63,7 @@ impl Fallback {
             "Fallback",
             child_names,
             child_ids,
-            handles,
+            children,
         )
     }
 }

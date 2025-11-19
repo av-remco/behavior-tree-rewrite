@@ -104,6 +104,16 @@ impl NodeHandle {
         handles
     }
 
+    pub fn get_first_child(&mut self) -> Option<NodeHandle> {
+        let handle = self
+            .take_handles()
+            .first()
+            .cloned()
+            .expect("A child was not present in the node handles!");
+        Some(handle)
+    }
+
+
     pub fn send(&self, msg: ChildMessage) -> Result<(), NodeError> {
         self.tx.send(msg)?;
         Ok(())
@@ -161,7 +171,7 @@ impl NodeHandle {
 
 impl PartialEq for NodeHandle {
     fn eq(&self, other: &Self) -> bool {
-        self.id == other.id
+        self.id == other.id && self.name == other.name
     }
 }
 

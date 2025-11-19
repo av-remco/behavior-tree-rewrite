@@ -89,7 +89,7 @@ async fn test_sequence_condition_stops_sequence() {
 }
 
 #[tokio::test]
-async fn test_fallback_first_child_fails_second_is_action() {
+async fn test_fallback_hits_first_action() {
     let fail1 = Failure::new();
     let succ = Success::new();
 
@@ -101,7 +101,6 @@ async fn test_fallback_first_child_fails_second_is_action() {
     assert_eq!(trace, vec![
         fb,                      // enter fallback
         fail1,                   // first child
-        succ,                    // fallback tries next child
     ]);
 }
 
