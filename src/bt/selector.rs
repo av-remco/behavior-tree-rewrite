@@ -1,12 +1,7 @@
-use anyhow::Result;
-use futures::Future;
-
-use std::pin::Pin;
 use tokio::sync::broadcast::channel;
 
-use super::handle::NodeError;
 use crate::NodeType;
-use crate::bt::handle::{FutResponse, NodeHandle};
+use crate::bt::handle::NodeHandle;
 use crate::bt::CHANNEL_SIZE;
 
 pub struct Sequence {
@@ -18,8 +13,8 @@ impl Sequence {
         children: Vec<NodeHandle>,
     ) -> NodeHandle {
         // TODO: Channels are useless, but required
-        let (parent_tx, parent_rx) = channel(CHANNEL_SIZE);
-        let (child_tx, child_rx) = channel(CHANNEL_SIZE);
+        let (parent_tx, _) = channel(CHANNEL_SIZE);
+        let (_, child_rx) = channel(CHANNEL_SIZE);
 
         let child_names = children.iter().map(|x| x.name.clone()).collect();
         let child_ids = children.iter().map(|x| x.id.clone()).collect();
@@ -45,8 +40,8 @@ impl Fallback {
         children: Vec<NodeHandle>,
     ) -> NodeHandle {
         // TODO: Channels are useless, but required
-        let (parent_tx, parent_rx) = channel(CHANNEL_SIZE);
-        let (child_tx, child_rx) = channel(CHANNEL_SIZE);
+        let (parent_tx, _) = channel(CHANNEL_SIZE);
+        let (_, child_rx) = channel(CHANNEL_SIZE);
 
         let child_names = children.iter().map(|x| x.name.clone()).collect();
         let child_ids = children.iter().map(|x| x.id.clone()).collect();

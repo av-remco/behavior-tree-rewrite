@@ -1,4 +1,4 @@
-use crate::{NodeHandle, NodeType};
+use crate::{NodeHandle, NodeType, bt::handle::Status};
 
 pub mod handle;
 pub mod nodes;
@@ -30,7 +30,7 @@ impl BehaviorTree {
         }
     }
 
-    pub(crate) async fn search_start(&self) -> Vec<NodeHandle> {
+    pub(crate) fn search_start(&self) -> Vec<NodeHandle> {
         self.rec_search_down(self.root_node.clone(), vec![])
     }
 
@@ -52,6 +52,23 @@ impl BehaviorTree {
                     panic!("Did not find Handle for child");
                 }
             }
+        }
+    }
+
+    pub(crate) fn search_next(&self, trace: Vec<NodeHandle>, result: Status) -> Vec<NodeHandle> {
+        self.rec_search_up(trace, result)
+    }
+
+    fn rec_search_up(&self, mut trace: Vec<NodeHandle>, result: Status) -> Vec<NodeHandle> {
+        match trace.pop() {
+            Some(node) => {
+                match (node.element, result) {
+                    (NodeType::Fallback, Status::Failure) => { /* ... */ },
+                    (NodeType::Sequence, Status::Success) => { /* ... */ },
+                    (_,_) => self.rec_search_up(trace, result)
+                }
+            },
+            None => return trace,
         }
     }
 }

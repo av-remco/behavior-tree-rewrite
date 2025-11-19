@@ -24,9 +24,9 @@ mod tests {
     #[tokio::test]
     async fn test_auto_failure() {
         let action1 = Failure::new();
-        let mut bt = BehaviorTree::new_test(action1.clone());
+        let bt = BehaviorTree::new_test(action1.clone());
 
-        let trace = bt.search_start().await;
+        let trace = bt.search_start();
 
         assert_eq!(trace, vec![
             action1,                  // action visited
@@ -36,9 +36,9 @@ mod tests {
     #[tokio::test]
     async fn test_auto_success() {
         let action1 = Success::new();
-        let mut bt = BehaviorTree::new_test(action1.clone());
+        let bt = BehaviorTree::new_test(action1.clone());
 
-        let trace = bt.search_start().await;
+        let trace = bt.search_start();
 
         assert_eq!(trace, vec![
             action1,
@@ -48,9 +48,9 @@ mod tests {
     #[tokio::test]
     async fn test_condition_true_stops_at_condition() {
         let cond = Condition::new("cond1", Handle::new(5), |x| x > 0);
-        let mut bt = BehaviorTree::new_test(cond.clone());
+        let bt = BehaviorTree::new_test(cond.clone());
 
-        let trace = bt.search_start().await;
+        let trace = bt.search_start();
 
         assert_eq!(trace, vec![
             cond,                    // condition entered → stops
@@ -63,9 +63,9 @@ mod tests {
         let a2 = Success::new();
         let seq = Sequence::new(vec![a1.clone(), a2.clone()]);
 
-        let mut bt = BehaviorTree::new_test(seq.clone());
+        let bt = BehaviorTree::new_test(seq.clone());
 
-        let trace = bt.search_start().await;
+        let trace = bt.search_start();
 
         assert_eq!(trace, vec![
             seq,                     // enter sequence
@@ -79,9 +79,9 @@ mod tests {
         let a2 = Success::new();
 
         let seq = Sequence::new(vec![cond.clone(), a2.clone()]);
-        let mut bt = BehaviorTree::new_test(seq.clone());
+        let bt = BehaviorTree::new_test(seq.clone());
 
-        let trace = bt.search_start().await;
+        let trace = bt.search_start();
 
         assert_eq!(trace, vec![
             seq,                     // enter sequence
@@ -95,9 +95,9 @@ mod tests {
         let succ = Success::new();
 
         let fb = Fallback::new(vec![fail1.clone(), succ.clone()]);
-        let mut bt = BehaviorTree::new_test(fb.clone());
+        let bt = BehaviorTree::new_test(fb.clone());
 
-        let trace = bt.search_start().await;
+        let trace = bt.search_start();
 
         assert_eq!(trace, vec![
             fb,                      // enter fallback
@@ -111,9 +111,9 @@ mod tests {
         let a2  = Success::new();
 
         let fb = Fallback::new(vec![cond.clone(), a2.clone()]);
-        let mut bt = BehaviorTree::new_test(fb.clone());
+        let bt = BehaviorTree::new_test(fb.clone());
 
-        let trace = bt.search_start().await;
+        let trace = bt.search_start();
 
         assert_eq!(trace, vec![
             fb,                      // enter fallback
@@ -136,9 +136,9 @@ mod tests {
         let fb = Fallback::new(vec![fail.clone(), act.clone()]);
 
         let seq = Sequence::new(vec![cond.clone(), fb.clone()]);
-        let mut bt = BehaviorTree::new_test(seq.clone());
+        let bt = BehaviorTree::new_test(seq.clone());
 
-        let trace = bt.search_start().await;
+        let trace = bt.search_start();
 
         assert_eq!(trace, vec![
             seq,                     // enter sequence
@@ -162,9 +162,9 @@ mod tests {
         let a2 = Success::new();
         let fb = Fallback::new(vec![seq.clone(), a2.clone()]);
 
-        let mut bt = BehaviorTree::new_test(fb.clone());
+        let bt = BehaviorTree::new_test(fb.clone());
 
-        let trace = bt.search_start().await;
+        let trace = bt.search_start();
 
         assert_eq!(trace, vec![
             fb,                      // enter fallback
@@ -185,14 +185,14 @@ mod tests {
         let a2 = Success::new();
 
         let seq = Sequence::new(vec![cond.clone(), a1.clone(), a2.clone()]);
-        let mut bt = BehaviorTree::new_test(seq.clone());
+        let bt = BehaviorTree::new_test(seq.clone());
 
         // First search: stops at condition
-        let start = bt.search_start().await;
+        let start = bt.search_start();
         assert_eq!(start, vec![seq.clone(), cond.clone()]);
 
         // Now simulate the condition result
-        let next = bt.search_next(start.clone(), Status::Success).await.trace;
+        let next = bt.search_next(start.clone(), Status::Success);
 
         assert_eq!(next, vec![
             seq.clone(),
@@ -209,13 +209,13 @@ mod tests {
         let a1 = Success::new();
 
         let seq = Sequence::new(vec![cond.clone(), a1.clone()]);
-        let mut bt = BehaviorTree::new_test(seq.clone());
+        let bt = BehaviorTree::new_test(seq.clone());
 
-        let start = bt.search_start().await;
+        let start = bt.search_start();
         assert_eq!(start, vec![seq.clone(), cond.clone()]);
 
         // Condition failed
-        let next = bt.search_next(start.clone(), Status::Failure).await.trace;
+        let next = bt.search_next(start.clone(), Status::Failure);
 
         // Sequence terminates → no deeper path
         assert_eq!(next, vec![
@@ -233,13 +233,13 @@ mod tests {
         let a1 = Success::new();
 
         let fb = Fallback::new(vec![cond.clone(), a1.clone()]);
-        let mut bt = BehaviorTree::new_test(fb.clone());
+        let bt = BehaviorTree::new_test(fb.clone());
 
-        let start = bt.search_start().await;
+        let start = bt.search_start();
         assert_eq!(start, vec![fb.clone(), cond.clone()]);
 
         // cond fails => fallback continues to next child
-        let next = bt.search_next(start.clone(), Status::Failure).await;
+        let next = bt.search_next(start.clone(), Status::Failure);
 
         assert_eq!(next, vec![
             fb.clone(),
@@ -258,13 +258,13 @@ mod tests {
         let a1 = Success::new();
 
         let fb = Fallback::new(vec![cond.clone(), a1.clone()]);
-        let mut bt = BehaviorTree::new_test(fb.clone());
+        let bt = BehaviorTree::new_test(fb.clone());
 
-        let start = bt.search_start().await;
+        let start = bt.search_start();
         assert_eq!(start, vec![fb.clone(), cond.clone()]);
 
         // cond success => fallback stops
-        let next = bt.search_next(start.clone(), Status::Success).await;
+        let next = bt.search_next(start.clone(), Status::Success);
 
         assert_eq!(next, vec![
             fb.clone(),
@@ -287,9 +287,9 @@ mod tests {
         let a2 = Success::new();
         let fb = Fallback::new(vec![seq.clone(), a2.clone()]);
 
-        let mut bt = BehaviorTree::new_test(fb.clone());
+        let bt = BehaviorTree::new_test(fb.clone());
 
-        let start = bt.search_start().await;
+        let start = bt.search_start();
         assert_eq!(start, vec![
             fb.clone(),
             seq.clone(),
@@ -297,7 +297,7 @@ mod tests {
         ]);
 
         // Condition fails
-        let next = bt.search_next(start.clone(), Status::Failure).await;
+        let next = bt.search_next(start.clone(), Status::Failure);
 
         // fallback tries second child (a2)
         assert_eq!(next, vec![
@@ -315,19 +315,16 @@ mod tests {
         // should return vec![], since there is no higher-level parent.
 
         let a1 = Success::new();
-        let root = Root::new(a1.clone());
 
-        let mut bt = BehaviorTree::new_test(root.clone());
-
-        // Manually create a trace representing that only the root was visited.
-        // (Equivalent situation happens after finishing the entire tree)
-        let root_trace = vec![root.clone()];
+        let bt = BehaviorTree::new_test(a1.clone());
 
         // Try search_next after the root returns any status (Success or Failure)
-        let next_success = bt.search_next(root_trace.clone(), Status::Success).await;
-        let next_failure = bt.search_next(root_trace.clone(), Status::Failure).await;
+        let fst_trace = bt.search_start();
+        let snd_trace = bt.search_next(fst_trace.clone(), Status::Success);
+        let trd_trace = bt.search_next(fst_trace.clone(), Status::Failure);
 
-        assert_eq!(next_success, Vec::<NodeHandle>::new());
-        assert_eq!(next_failure, Vec::<NodeHandle>::new());
+        assert_eq!(fst_trace, vec![a1.clone()]);
+        assert_eq!(snd_trace, Vec::<NodeHandle>::new());
+        assert_eq!(trd_trace, Vec::<NodeHandle>::new());
     }
 }
