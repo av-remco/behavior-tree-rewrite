@@ -1,9 +1,14 @@
 mod bt;
 
 pub use crate::bt::{
+    BehaviorTree,
     handle::{NodeError, NodeHandle},
     nodes::NodeType,
+    action::{Action, Wait, Success, Failure},
 };
+
+#[cfg(test)]
+mod bt_tests;
 
 #[cfg(test)]
 #[allow(dead_code)]

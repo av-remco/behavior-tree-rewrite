@@ -134,6 +134,8 @@ impl NodeHandle {
         let element = match self.element {
             NodeType::Condition => String::from("Decorator"), // Groot sees any condition as decorator
             NodeType::Action => String::from("Action"),
+            NodeType::Sequence => String::from("Sequence"),
+            NodeType::Fallback => String::from("Fallback"),
         };
 
         let mut element = XMLElement::new(element);
@@ -154,6 +156,12 @@ impl NodeHandle {
                 "name": self.name.clone(),
                 "type": self.element.clone()})
         }
+    }
+}
+
+impl PartialEq for NodeHandle {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id
     }
 }
 

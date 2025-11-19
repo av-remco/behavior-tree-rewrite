@@ -2,4 +2,6 @@
 pub enum NodeType {
     Action,
     Condition,
+    Fallback,
+    Sequence,
 }
