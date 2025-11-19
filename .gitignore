@@ -1,0 +1,7 @@
+/target
+.vscode
+*.lock
+*.json
+*.xml
+github
+*.pub
