@@ -31,23 +31,25 @@ impl BehaviorTree {
     }
 
     pub(crate) async fn search_start(&self) -> Vec<NodeHandle> {
-        self.rec_search_start(self.root_node.clone(), vec![])
+        self.rec_search_down(self.root_node.clone(), vec![])
     }
 
-    fn rec_search_start(&self, mut node: NodeHandle, mut trace: Vec<NodeHandle>) -> Vec<NodeHandle> {
+    fn rec_search_down(&self, mut node: NodeHandle, mut trace: Vec<NodeHandle>) -> Vec<NodeHandle> {
         match node.element {
             NodeType::Action | NodeType::Condition => {
                 trace.push(node.clone());
                 trace
             },
             NodeType::Fallback | NodeType::Sequence => {
-                println!("{:?}", node.name);
-                println!("{:?}", node.id);
-                if let Some(child) = node.get_first_child() {
+                let id = match node.children_ids.first().cloned() {
+                    Some(id) => id,
+                    None => panic!("Found a selector without a child"),
+                };
+                if let Some(child) = node.get_child_handle_by_id(id) {
                     trace.push(node.clone());
-                    self.rec_search_start(child, trace)
+                    self.rec_search_down(child, trace)
                 } else {
-                    panic!("Found a selector without a child");
+                    panic!("Did not find Handle for child");
                 }
             }
         }

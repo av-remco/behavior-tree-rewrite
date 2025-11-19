@@ -53,7 +53,7 @@ impl NodeHandle {
             rx,
             element: element,
             name: name.into(),
-            id: Uuid::now_v1(&[1, 2, 3, 4, 5, 6]).to_string(),
+            id: Uuid::new_v4().to_string(),
             handles,
             children_names,
             children_ids,
@@ -104,12 +104,19 @@ impl NodeHandle {
         handles
     }
 
-    pub fn get_first_child(&mut self) -> Option<NodeHandle> {
+    pub fn get_child_handle_by_id(&mut self, id: String) -> Option<NodeHandle> {
+        let id = match self.children_ids.first().cloned() {
+            Some(id) => id,
+            None => return None,
+        };
+
         let handle = self
             .take_handles()
-            .first()
+            .iter()
+            .find(|x| x.id == id)
             .cloned()
             .expect("A child was not present in the node handles!");
+
         Some(handle)
     }
 
@@ -171,7 +178,7 @@ impl NodeHandle {
 
 impl PartialEq for NodeHandle {
     fn eq(&self, other: &Self) -> bool {
-        self.id == other.id && self.name == other.name
+        self.id == other.id
     }
 }
 

@@ -1,26 +1,21 @@
 use anyhow::Result;
-use futures::future::select_all;
-use futures::{Future, FutureExt};
+use futures::Future;
 
 use std::pin::Pin;
-use tokio::sync::broadcast::{channel, Receiver, Sender};
+use tokio::sync::broadcast::channel;
 
 use super::handle::NodeError;
 use crate::NodeType;
-use crate::bt::handle::{ChildMessage, FutResponse, Node, NodeHandle, ParentMessage, Status};
+use crate::bt::handle::{FutResponse, NodeHandle};
 use crate::bt::CHANNEL_SIZE;
 
-// Simplify complex type
-type FutVec = Vec<Pin<Box<dyn Future<Output = Result<FutResponse, NodeError>> + Send>>>;
-
-// Prevent typo errors in booleans by using explicit types
 pub struct Sequence {
     children: Vec<NodeHandle>,
 }
 
 impl Sequence {
     pub fn new(
-        mut children: Vec<NodeHandle>,
+        children: Vec<NodeHandle>,
     ) -> NodeHandle {
         // TODO: Channels are useless, but required
         let (parent_tx, parent_rx) = channel(CHANNEL_SIZE);
@@ -47,7 +42,7 @@ pub struct Fallback {
 
 impl Fallback {
     pub fn new(
-        mut children: Vec<NodeHandle>,
+        children: Vec<NodeHandle>,
     ) -> NodeHandle {
         // TODO: Channels are useless, but required
         let (parent_tx, parent_rx) = channel(CHANNEL_SIZE);
