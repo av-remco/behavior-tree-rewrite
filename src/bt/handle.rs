@@ -183,12 +183,6 @@ pub enum FutResponse {
 
 pub trait Node: Sync + Send {
     async fn serve(self);
-
-    // Consuming and returning the receiver allows stacking it in a future vector
-    async fn run_listen_parent(mut rx: Receiver<ChildMessage>) -> Result<FutResponse, NodeError> {
-        let msg = rx.recv().await?;
-        Ok(FutResponse::Parent(msg, rx))
-    }
 }
 
 #[derive(PartialEq, Debug, Clone, Eq, Hash)]

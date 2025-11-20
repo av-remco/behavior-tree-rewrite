@@ -4,7 +4,9 @@ mod tests {
     use actify::Handle;
     use log::warn;
     use tokio::sync::mpsc::Receiver;
+    use crate::bt::converter::convert_bt;
     use crate::bt::handle::Status;
+    use crate::bt::traversal::{search_next, search_start};
     use crate::{BehaviorTree, NodeError, NodeHandle};
     use std::collections::HashMap;
     use tokio::time::{Duration, sleep};
@@ -26,7 +28,7 @@ mod tests {
         let action1 = Failure::new();
         let bt = BehaviorTree::new_test(action1.clone());
 
-        let trace = bt.search_start();
+        let trace = search_start(&bt);
 
         assert_eq!(trace, vec![
             action1,                  // action visited
@@ -38,7 +40,7 @@ mod tests {
         let action1 = Success::new();
         let bt = BehaviorTree::new_test(action1.clone());
 
-        let trace = bt.search_start();
+        let trace = search_start(&bt);
 
         assert_eq!(trace, vec![
             action1,
@@ -50,7 +52,7 @@ mod tests {
         let cond = Condition::new("cond1", Handle::new(5), |x| x > 0);
         let bt = BehaviorTree::new_test(cond.clone());
 
-        let trace = bt.search_start();
+        let trace = search_start(&bt);
 
         assert_eq!(trace, vec![
             cond,                    // condition entered → stops
@@ -65,7 +67,7 @@ mod tests {
 
         let bt = BehaviorTree::new_test(seq.clone());
 
-        let trace = bt.search_start();
+        let trace = search_start(&bt);
 
         assert_eq!(trace, vec![
             seq,                     // enter sequence
@@ -81,7 +83,7 @@ mod tests {
         let seq = Sequence::new(vec![cond.clone(), a2.clone()]);
         let bt = BehaviorTree::new_test(seq.clone());
 
-        let trace = bt.search_start();
+        let trace = search_start(&bt);
 
         assert_eq!(trace, vec![
             seq,                     // enter sequence
@@ -97,7 +99,7 @@ mod tests {
         let fb = Fallback::new(vec![fail1.clone(), succ.clone()]);
         let bt = BehaviorTree::new_test(fb.clone());
 
-        let trace = bt.search_start();
+        let trace = search_start(&bt);
 
         assert_eq!(trace, vec![
             fb,                      // enter fallback
@@ -113,7 +115,7 @@ mod tests {
         let fb = Fallback::new(vec![cond.clone(), a2.clone()]);
         let bt = BehaviorTree::new_test(fb.clone());
 
-        let trace = bt.search_start();
+        let trace = search_start(&bt);
 
         assert_eq!(trace, vec![
             fb,                      // enter fallback
@@ -138,7 +140,7 @@ mod tests {
         let seq = Sequence::new(vec![cond.clone(), fb.clone()]);
         let bt = BehaviorTree::new_test(seq.clone());
 
-        let trace = bt.search_start();
+        let trace = search_start(&bt);
 
         assert_eq!(trace, vec![
             seq,                     // enter sequence
@@ -164,7 +166,7 @@ mod tests {
 
         let bt = BehaviorTree::new_test(fb.clone());
 
-        let trace = bt.search_start();
+        let trace = search_start(&bt);
 
         assert_eq!(trace, vec![
             fb,                      // enter fallback
@@ -174,7 +176,7 @@ mod tests {
     }
 
 
-    // * Tests for search_next()
+    // * Tests for search_next(&bt, )
     #[tokio::test]
     async fn test_search_next_sequence_continue() {
         // sequence: cond  → a1 → a2
@@ -188,11 +190,11 @@ mod tests {
         let bt = BehaviorTree::new_test(seq.clone());
 
         // First search: stops at condition
-        let start = bt.search_start();
+        let start = search_start(&bt);
         assert_eq!(start, vec![seq.clone(), cond.clone()]);
 
         // Now simulate the condition result
-        let next = bt.search_next(start.clone(), &Status::Success);
+        let next = search_next(&bt, start.clone(), &Status::Success);
 
         assert_eq!(next, vec![
             seq.clone(),
@@ -211,11 +213,11 @@ mod tests {
         let seq = Sequence::new(vec![cond.clone(), a1.clone()]);
         let bt = BehaviorTree::new_test(seq.clone());
 
-        let start = bt.search_start();
+        let start = search_start(&bt);
         assert_eq!(start, vec![seq.clone(), cond.clone()]);
 
         // Condition failed
-        let next = bt.search_next(start.clone(), &Status::Failure);
+        let next = search_next(&bt, start.clone(), &Status::Failure);
 
         // Sequence terminates → no deeper path
         assert_eq!(next, vec![]);
@@ -233,11 +235,11 @@ mod tests {
         let fb = Fallback::new(vec![cond.clone(), a1.clone()]);
         let bt = BehaviorTree::new_test(fb.clone());
 
-        let start = bt.search_start();
+        let start = search_start(&bt);
         assert_eq!(start, vec![fb.clone(), cond.clone()]);
 
         // cond fails => fallback continues to next child
-        let next = bt.search_next(start.clone(), &Status::Failure);
+        let next = search_next(&bt, start.clone(), &Status::Failure);
 
         assert_eq!(next, vec![
             fb.clone(),
@@ -258,11 +260,11 @@ mod tests {
         let fb = Fallback::new(vec![cond.clone(), a1.clone()]);
         let bt = BehaviorTree::new_test(fb.clone());
 
-        let start = bt.search_start();
+        let start = search_start(&bt);
         assert_eq!(start, vec![fb.clone(), cond.clone()]);
 
         // cond success => fallback stops
-        let next = bt.search_next(start.clone(), &Status::Success);
+        let next = search_next(&bt, start.clone(), &Status::Success);
 
         assert_eq!(next, vec![]);
     }
@@ -285,7 +287,7 @@ mod tests {
 
         let bt = BehaviorTree::new_test(fb.clone());
 
-        let start = bt.search_start();
+        let start = search_start(&bt);
         assert_eq!(start, vec![
             fb.clone(),
             seq.clone(),
@@ -293,7 +295,7 @@ mod tests {
         ]);
 
         // Condition fails
-        let next = bt.search_next(start.clone(), &Status::Failure);
+        let next = search_next(&bt, start.clone(), &Status::Failure);
 
         // fallback tries second child (a2)
         assert_eq!(next, vec![
@@ -305,7 +307,7 @@ mod tests {
     #[tokio::test]
     async fn test_search_next_on_root_returns_empty() {
         // Root → child action
-        // search_start() stops at the first actionable node (the child)
+        // search_start(&bt) stops at the first actionable node (the child)
         //
         // But search_next applied on a trace that only contains the root
         // should return vec![], since there is no higher-level parent.
@@ -315,9 +317,9 @@ mod tests {
         let bt = BehaviorTree::new_test(a1.clone());
 
         // Try search_next after the root returns any Status (Success or Failure)
-        let fst_trace = bt.search_start();
-        let snd_trace = bt.search_next(fst_trace.clone(), &Status::Success);
-        let trd_trace = bt.search_next(fst_trace.clone(), &Status::Failure);
+        let fst_trace = search_start(&bt);
+        let snd_trace = search_next(&bt, fst_trace.clone(), &Status::Success);
+        let trd_trace = search_next(&bt, fst_trace.clone(), &Status::Failure);
 
         assert_eq!(fst_trace, vec![a1.clone()]);
         assert_eq!(snd_trace, Vec::<NodeHandle>::new());
@@ -331,7 +333,7 @@ mod tests {
         let action = MockAction::new(1);
         let mut bt = BehaviorTree::new_test(action.clone());
 
-        let map = convert_bt(&mut bt).await;
+        let map = convert_bt(&mut bt);
 
         // Only one node in the map
         assert_eq!(map.len(), 2);
@@ -356,7 +358,7 @@ mod tests {
 
         let mut bt = BehaviorTree::new_test(seq);
 
-        let map = convert_bt(&mut bt).await;
+        let map = convert_bt(&mut bt);
         println!("{:?}", map);
 
         // CONDITION → SUCCESS → ACTION
@@ -399,7 +401,7 @@ mod tests {
 
         let mut bt = BehaviorTree::new_test(fb);
 
-        let map = convert_bt(&mut bt).await;
+        let map = convert_bt(&mut bt);
 
         // Fallback logic:
         // Cond → Success → A1
@@ -433,7 +435,7 @@ mod tests {
 
         let mut bt = BehaviorTree::new_test(seq);
 
-        let map = convert_bt(&mut bt).await;
+        let map = convert_bt(&mut bt);
 
         // cond1 SUCCESS → cond2
         assert_eq!(
@@ -479,7 +481,7 @@ mod tests {
 
         let mut bt = BehaviorTree::new_test(fb);
 
-        let map = convert_bt(&mut bt).await;
+        let map = convert_bt(&mut bt);
 
         // cond1 SUCCESS → a1
         assert_eq!(map[&(cond1.clone(), Status::Success)], Some(a1.clone()));
