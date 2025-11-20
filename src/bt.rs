@@ -1,3 +1,5 @@
+use std::collections::{HashMap, HashSet, VecDeque};
+
 use crate::{NodeHandle, NodeType, bt::handle::Status};
 
 pub mod handle;
@@ -109,4 +111,47 @@ impl BehaviorTree {
 
         Some(handle)
     }
+}
+
+type BehaviorTreeMap = HashMap<(NodeHandle, Status), Option<NodeHandle>>;
+
+pub async fn convert_bt(bt: &mut BehaviorTree) -> BehaviorTreeMap {
+    let mut map = HashMap::new();
+    let mut visited = HashSet::new();
+    let mut queue = VecDeque::new();
+
+    // 1. Start: search_start() returns Vec<NodeHandle>
+    let mut start_vec = bt.search_start();
+    if let Some(start) = start_vec.last().cloned() {
+        queue.push_back(start_vec.clone());
+        visited.insert(start.clone());
+
+        while let Some(current) = queue.pop_front() {
+            // Try SUCCESS
+            let succ_vec = bt.search_next(current.clone(), &Status::Success);
+            let succ_next = succ_vec.last().cloned(); // Option<NodeHandle>
+            map.insert((current.last().cloned().unwrap(), Status::Success), succ_next.clone());
+
+            if let Some(next) = succ_next.clone() {
+                if !visited.contains(&next) {
+                    visited.insert(next.clone());
+                    queue.push_back(succ_vec.clone());
+                }
+            }
+
+            // Try FAILURE
+            let fail_vec = bt.search_next(current.clone(), &Status::Failure);
+            let fail_next = fail_vec.last().cloned();
+            map.insert((current.last().cloned().unwrap(), Status::Failure), fail_next.clone());
+
+            if let Some(next) = fail_next.clone() {
+                if !visited.contains(&next) {
+                    visited.insert(next.clone());
+                    queue.push_back(fail_vec.clone());
+                }
+            }
+        }
+    }
+
+    map
 }

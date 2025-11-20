@@ -1,3 +1,5 @@
+use std::hash::Hash;
+
 use actify::CacheRecvNewestError;
 use anyhow::Result;
 use simple_xml_builder::XMLElement;
@@ -165,6 +167,14 @@ impl PartialEq for NodeHandle {
     }
 }
 
+impl Eq for NodeHandle {}
+
+impl Hash for NodeHandle {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.id.hash(state);
+    }
+}
+
 #[derive(Debug)]
 pub enum FutResponse {
     Parent(ChildMessage, Receiver<ChildMessage>),
@@ -181,7 +191,7 @@ pub trait Node: Sync + Send {
     }
 }
 
-#[derive(PartialEq, Debug, Clone)]
+#[derive(PartialEq, Debug, Clone, Eq, Hash)]
 pub enum Status {
     Success,
     Failure,
