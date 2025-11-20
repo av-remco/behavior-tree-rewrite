@@ -1,11 +1,15 @@
-use crate::{BehaviorTree, nodes_bin::{node::NodeType, node_handle::NodeHandle, node_status::Status}};
+use crate::{BT, bt::{BuildState, Built, Converting, Executing}, nodes_bin::{node::NodeType, node_handle::NodeHandle, node_status::Status}};
 
+trait TraversalState {}
+impl TraversalState for Converting {}
+impl TraversalState for Built {}
+impl TraversalState for Executing {}
 
-pub(crate) fn search_start(tree: &BehaviorTree) -> Vec<NodeHandle> {
+pub(crate) fn search_start<T: TraversalState + BuildState>(tree: &BT<T>) -> Vec<NodeHandle> {
     rec_search_down(tree, tree.root.clone(), vec![])
 }
 
-fn rec_search_down(tree: &BehaviorTree, node: NodeHandle, mut trace: Vec<NodeHandle>) -> Vec<NodeHandle> {
+fn rec_search_down<T: TraversalState + BuildState>(tree: &BT<T>, node: NodeHandle, mut trace: Vec<NodeHandle>) -> Vec<NodeHandle> {
     match node.element {
         NodeType::Action | NodeType::Condition => {
             trace.push(node.clone());
@@ -26,11 +30,11 @@ fn rec_search_down(tree: &BehaviorTree, node: NodeHandle, mut trace: Vec<NodeHan
     }
 }
 
-pub(crate) fn search_next(tree: &BehaviorTree, trace: Vec<NodeHandle>, result: &Status) -> Vec<NodeHandle> {
+pub(crate) fn search_next<T: TraversalState + BuildState>(tree: &BT<T>, trace: Vec<NodeHandle>, result: &Status) -> Vec<NodeHandle> {
     rec_search_up(tree, trace, result, None)
 }
 
-fn rec_search_up(tree: &BehaviorTree, mut trace: Vec<NodeHandle>, result: &Status, previous_node_id: Option<String>) -> Vec<NodeHandle> {
+fn rec_search_up<T: TraversalState + BuildState>(tree: &BT<T>, mut trace: Vec<NodeHandle>, result: &Status, previous_node_id: Option<String>) -> Vec<NodeHandle> {
     // If trace = [], we have reached the root
     let Some(node) = trace.pop() else {
         return trace;

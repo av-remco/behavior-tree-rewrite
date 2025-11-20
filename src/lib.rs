@@ -5,7 +5,7 @@ mod nodes;
 mod nodes_bin;
 
 pub use crate::{
-    bt::BehaviorTree,
+    bt::BT,
     nodes::{
         action::{Action, Wait, Success, Failure},
         condition::Condition,
