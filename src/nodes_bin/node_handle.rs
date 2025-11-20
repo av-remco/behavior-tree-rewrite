@@ -1,14 +1,16 @@
 use std::hash::Hash;
 
-use actify::CacheRecvNewestError;
 use anyhow::Result;
 use simple_xml_builder::XMLElement;
 
-use thiserror::Error;
-use tokio::sync::broadcast::{error::SendError, Receiver, Sender};
+use tokio::sync::broadcast::{Receiver, Sender};
 use uuid::Uuid;
 
-use crate::NodeType;
+use crate::nodes_bin::{
+    node::NodeType,
+    node_error::NodeError,
+    node_message::{ChildMessage, FutResponse, ParentMessage},
+};
 
 #[derive(Debug)]
 pub struct NodeHandle {
@@ -172,90 +174,5 @@ impl Eq for NodeHandle {}
 impl Hash for NodeHandle {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.id.hash(state);
-    }
-}
-
-#[derive(Debug)]
-pub enum FutResponse {
-    Parent(ChildMessage, Receiver<ChildMessage>),
-    Child(usize, ParentMessage, Receiver<ParentMessage>),
-}
-
-pub trait Node: Sync + Send {
-    async fn serve(self);
-}
-
-#[derive(PartialEq, Debug, Clone, Copy, Eq, Hash)]
-pub enum Status {
-    Success,
-    Failure,
-    Running,
-    Idle,
-}
-
-impl Status {
-    pub fn is_running(&self) -> bool {
-        matches!(self, Status::Running)
-    }
-
-    pub fn is_failure(&self) -> bool {
-        matches!(self, Status::Failure)
-    }
-
-    pub fn is_idle(&self) -> bool {
-        matches!(self, Status::Idle)
-    }
-
-    pub fn is_succes(&self) -> bool {
-        matches!(self, Status::Success)
-    }
-}
-
-#[derive(PartialEq, Debug, Clone)]
-pub enum ChildMessage {
-    Start,
-    Stop,
-    Kill,
-}
-
-impl ChildMessage {
-    pub fn is_kill(&self) -> bool {
-        *self == ChildMessage::Kill
-    }
-}
-
-#[derive(PartialEq, Debug, Clone)]
-pub enum ParentMessage {
-    RequestStart,
-    Status(Status),
-    Poison(NodeError),
-    Killed,
-}
-
-#[derive(Error, Debug, PartialEq, Clone)]
-pub enum NodeError {
-    #[error("The node is killed")]
-    KillError,
-    #[error("Poison error: {0}")]
-    PoisonError(String),
-    #[error("Execution error: {0}")]
-    ExecutionError(String),
-    #[error("Tokio broadcast send error: {0}")]
-    TokioBroadcastSendError(String),
-    #[error("Tokio broadcast receiver error")]
-    TokioBroadcastRecvError(#[from] tokio::sync::broadcast::error::RecvError),
-    #[error("Cache Error")]
-    CacheError(#[from] CacheRecvNewestError),
-}
-
-impl<T> From<SendError<T>> for NodeError {
-    fn from(err: SendError<T>) -> NodeError {
-        NodeError::TokioBroadcastSendError(err.to_string())
-    }
-}
-
-impl From<anyhow::Error> for NodeError {
-    fn from(err: anyhow::Error) -> NodeError {
-        NodeError::ExecutionError(err.to_string())
     }
 }

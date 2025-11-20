@@ -1,8 +1,6 @@
 use tokio::sync::broadcast::channel;
 
-use crate::NodeType;
-use crate::bt::handle::NodeHandle;
-use crate::bt::CHANNEL_SIZE;
+use crate::{bt::CHANNEL_SIZE, nodes_bin::{node::NodeType, node_handle::NodeHandle}};
 
 pub struct Sequence {
     children: Vec<NodeHandle>,

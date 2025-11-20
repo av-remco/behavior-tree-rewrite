@@ -1,19 +1,11 @@
-use crate::NodeHandle;
+use crate::nodes_bin::{node_handle::NodeHandle, node_index::NodeIndex};
 
-pub mod handle;
-pub mod nodes;
-pub mod action;
-pub mod condition;
-pub mod selector;
-pub mod traversal;
-pub mod converter;
-
-const CHANNEL_SIZE: usize = 20;
+pub(crate) const CHANNEL_SIZE: usize = 20;
 
 pub struct BehaviorTree {
     pub name: String,
     pub root: NodeHandle,
-    pub(crate) handles: Vec<NodeHandle>,
+    pub(crate) index: NodeIndex,
 }
 
 impl BehaviorTree {
@@ -31,17 +23,7 @@ impl BehaviorTree {
         Self {
             name,
             root,
-            handles,
+            index: NodeIndex::new(handles),
         }
-    }
-
-    pub(crate) fn get_node_handle_by_id(&self, id: String) -> Option<NodeHandle> {
-        let handle = self.handles
-            .iter()
-            .find(|x| x.id == id)
-            .cloned()
-            .expect("A handle was not present in the node handles!");
-
-        Some(handle)
     }
 }

@@ -1,14 +1,20 @@
 mod bt;
+mod conversion;
+mod execution;
+mod nodes;
+mod nodes_bin;
 
-pub use crate::bt::{
-    BehaviorTree,
-    handle::{NodeError, NodeHandle},
-    nodes::NodeType,
-    action::{Action, Wait, Success, Failure},
+pub use crate::{
+    bt::BehaviorTree,
+    nodes::{
+        action::{Action, Wait, Success, Failure},
+        condition::Condition,
+        selector::{Sequence, Fallback},
+    },
 };
 
 #[cfg(test)]
-mod bt_tests;
+mod tests;
 
 #[cfg(test)]
 #[allow(dead_code)]

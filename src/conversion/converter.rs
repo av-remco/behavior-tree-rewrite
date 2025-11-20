@@ -1,6 +1,7 @@
 use std::collections::{HashMap, HashSet, VecDeque};
 
-use crate::{BehaviorTree, NodeHandle, bt::{handle::Status, traversal::{search_next, search_start}}};
+use crate::{BehaviorTree, execution::traversal::{search_next, search_start}, nodes_bin::{node_handle::NodeHandle, node_status::Status}};
+
 
 type BehaviorTreeMap = HashMap<(NodeHandle, Status), Option<NodeHandle>>;
 

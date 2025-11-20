@@ -5,9 +5,14 @@ use anyhow::Result;
 use tokio::sync::broadcast::{channel, Receiver, Sender};
 use tokio::time::{sleep, Duration};
 
-use super::nodes::NodeType;
-use super::handle::{ChildMessage, Node, NodeError, NodeHandle, ParentMessage, Status};
-use super::CHANNEL_SIZE;
+use crate::nodes_bin::{
+    node::{Node, NodeType},
+    node_error::NodeError,
+    node_handle::NodeHandle,
+    node_message::{ChildMessage, ParentMessage},
+    node_status::Status,
+};
+use crate::bt::CHANNEL_SIZE;
 
 pub trait Executor {
     fn get_name(&self) -> String;
@@ -85,7 +90,6 @@ where
             ChildMessage::Kill => return Err(NodeError::KillError),
             ChildMessage::Start => self.update_status(Status::Running).await?,
             ChildMessage::Stop => self.update_status(Status::Failure).await?, // TODO: implement .stop() method
-            _ => {}
         }
         Ok(())
     }
@@ -234,8 +238,9 @@ pub(crate) mod mocking {
     use anyhow::{anyhow, Result};
     use tokio::time::{sleep, Duration};
 
+    use crate::nodes_bin::node_handle::NodeHandle;
+
     use super::{Action, Executor};
-    use crate::bt::handle::NodeHandle;
 
     // The Mock action is intended to completely mock all logic of a normal action, but does not execute anything complex.
     pub struct MockAction {

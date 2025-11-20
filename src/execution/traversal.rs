@@ -1,4 +1,5 @@
-use crate::{BehaviorTree, NodeHandle, NodeType, bt::handle::Status};
+use crate::{BehaviorTree, nodes_bin::{node::NodeType, node_handle::NodeHandle, node_status::Status}};
+
 
 pub(crate) fn search_start(tree: &BehaviorTree) -> Vec<NodeHandle> {
     rec_search_down(tree, tree.root.clone(), vec![])
@@ -11,11 +12,11 @@ fn rec_search_down(tree: &BehaviorTree, node: NodeHandle, mut trace: Vec<NodeHan
             trace
         },
         NodeType::Fallback | NodeType::Sequence => {
-            let id = match node.children_ids.first().cloned() {
+            let id = match node.children_ids.first() {
                 Some(id) => id,
                 None => panic!("Found a selector without a child"),
             };
-            if let Some(child) = tree.get_node_handle_by_id(id) {
+            if let Some(child) = tree.index.get(id) {
                 trace.push(node.clone());
                 rec_search_down(tree, child, trace)
             } else {
@@ -42,7 +43,7 @@ fn rec_search_up(tree: &BehaviorTree, mut trace: Vec<NodeHandle>, result: &Statu
             if let Some(child) = previous_node_id
                 .as_ref()
                 .and_then(|id| next_sibling(&node, id))
-                .and_then(|next_id| tree.get_node_handle_by_id(next_id))
+                .and_then(|next_id| tree.index.get(&next_id))
             {
                 trace.push(node.clone());
                 return rec_search_down(tree, child, trace);

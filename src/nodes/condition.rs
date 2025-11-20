@@ -4,12 +4,15 @@ use std::fmt::Debug;
 use std::future::Future;
 use std::marker::PhantomData;
 use tokio::sync::broadcast::{channel, Receiver, Sender};
-use tokio::time::{sleep, Duration};
 
-use crate::NodeType;
-
-use super::handle::{ChildMessage, Node, NodeError, NodeHandle, ParentMessage, Status};
-use super::CHANNEL_SIZE;
+use crate::nodes_bin::{
+    node::{Node, NodeType},
+    node_error::NodeError,
+    node_handle::NodeHandle,
+    node_message::{ChildMessage, ParentMessage},
+    node_status::Status,
+};
+use crate::bt::CHANNEL_SIZE;
 
 // Any custom (async) evaluator can be made with this trait
 pub trait Evaluator<V> {

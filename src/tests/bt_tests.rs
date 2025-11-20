@@ -4,22 +4,15 @@ mod tests {
     use actify::Handle;
     use log::warn;
     use tokio::sync::mpsc::Receiver;
-    use crate::bt::converter::convert_bt;
-    use crate::bt::handle::Status;
-    use crate::bt::traversal::{search_next, search_start};
-    use crate::{BehaviorTree, NodeError, NodeHandle};
     use std::collections::HashMap;
     use tokio::time::{Duration, sleep};
-
-    use crate::bt::*;
-    use crate::bt::{
-        action::{Failure, Success},
-        condition::{Condition},
-        selector::{Sequence, Fallback},
-    };
-    use crate::bt::action::mocking::MockAction;
+    use crate::conversion::converter::convert_bt;
+    use crate::execution::traversal::{search_next, search_start};
     use crate::logging::load_logger;
-    use crate::Wait;
+    use crate::nodes::action::mocking::MockAction;
+    use crate::nodes_bin::node_handle::NodeHandle;
+    use crate::nodes_bin::node_status::Status;
+    use crate::{BehaviorTree, Condition, Failure, Fallback, Sequence, Success, Wait};
     use logtest::Logger;
 
     // * Tests for search_down()
