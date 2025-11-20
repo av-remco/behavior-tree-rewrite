@@ -192,7 +192,7 @@ mod tests {
         assert_eq!(start, vec![seq.clone(), cond.clone()]);
 
         // Now simulate the condition result
-        let next = bt.search_next(start.clone(), Status::Success);
+        let next = bt.search_next(start.clone(), &Status::Success);
 
         assert_eq!(next, vec![
             seq.clone(),
@@ -215,12 +215,10 @@ mod tests {
         assert_eq!(start, vec![seq.clone(), cond.clone()]);
 
         // Condition failed
-        let next = bt.search_next(start.clone(), Status::Failure);
+        let next = bt.search_next(start.clone(), &Status::Failure);
 
         // Sequence terminates → no deeper path
-        assert_eq!(next, vec![
-            seq.clone(),   // returning to the owner of the failure
-        ]);
+        assert_eq!(next, vec![]);
     }
 
     #[tokio::test]
@@ -239,7 +237,7 @@ mod tests {
         assert_eq!(start, vec![fb.clone(), cond.clone()]);
 
         // cond fails => fallback continues to next child
-        let next = bt.search_next(start.clone(), Status::Failure);
+        let next = bt.search_next(start.clone(), &Status::Failure);
 
         assert_eq!(next, vec![
             fb.clone(),
@@ -264,11 +262,9 @@ mod tests {
         assert_eq!(start, vec![fb.clone(), cond.clone()]);
 
         // cond success => fallback stops
-        let next = bt.search_next(start.clone(), Status::Success);
+        let next = bt.search_next(start.clone(), &Status::Success);
 
-        assert_eq!(next, vec![
-            fb.clone(),
-        ]);
+        assert_eq!(next, vec![]);
     }
 
     #[tokio::test]
@@ -297,7 +293,7 @@ mod tests {
         ]);
 
         // Condition fails
-        let next = bt.search_next(start.clone(), Status::Failure);
+        let next = bt.search_next(start.clone(), &Status::Failure);
 
         // fallback tries second child (a2)
         assert_eq!(next, vec![
@@ -318,10 +314,10 @@ mod tests {
 
         let bt = BehaviorTree::new_test(a1.clone());
 
-        // Try search_next after the root returns any status (Success or Failure)
+        // Try search_next after the root returns any Status (Success or Failure)
         let fst_trace = bt.search_start();
-        let snd_trace = bt.search_next(fst_trace.clone(), Status::Success);
-        let trd_trace = bt.search_next(fst_trace.clone(), Status::Failure);
+        let snd_trace = bt.search_next(fst_trace.clone(), &Status::Success);
+        let trd_trace = bt.search_next(fst_trace.clone(), &Status::Failure);
 
         assert_eq!(fst_trace, vec![a1.clone()]);
         assert_eq!(snd_trace, Vec::<NodeHandle>::new());

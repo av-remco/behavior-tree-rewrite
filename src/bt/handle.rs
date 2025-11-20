@@ -104,23 +104,6 @@ impl NodeHandle {
         handles
     }
 
-    pub fn get_child_handle_by_id(&mut self, id: String) -> Option<NodeHandle> {
-        let id = match self.children_ids.first().cloned() {
-            Some(id) => id,
-            None => return None,
-        };
-
-        let handle = self
-            .take_handles()
-            .iter()
-            .find(|x| x.id == id)
-            .cloned()
-            .expect("A child was not present in the node handles!");
-
-        Some(handle)
-    }
-
-
     pub fn send(&self, msg: ChildMessage) -> Result<(), NodeError> {
         self.tx.send(msg)?;
         Ok(())

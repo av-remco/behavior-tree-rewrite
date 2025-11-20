@@ -11,6 +11,7 @@ const CHANNEL_SIZE: usize = 20;
 pub struct BehaviorTree {
     pub name: String,
     root_node: NodeHandle,
+    handles: Vec<NodeHandle>,
 }
 
 impl BehaviorTree {
@@ -24,9 +25,11 @@ impl BehaviorTree {
     }
 
     fn _new(mut root_node: NodeHandle, name: String) -> Self {
+        let handles = root_node.take_handles();
         Self {
             name,
             root_node,
+            handles,
         }
     }
 
@@ -35,6 +38,7 @@ impl BehaviorTree {
     }
 
     fn rec_search_down(&self, mut node: NodeHandle, mut trace: Vec<NodeHandle>) -> Vec<NodeHandle> {
+        println!("Searching down from {:?}", node.name);
         match node.element {
             NodeType::Action | NodeType::Condition => {
                 trace.push(node.clone());
@@ -45,7 +49,7 @@ impl BehaviorTree {
                     Some(id) => id,
                     None => panic!("Found a selector without a child"),
                 };
-                if let Some(child) = node.get_child_handle_by_id(id) {
+                if let Some(child) = self.get_node_handle_by_id(id) {
                     trace.push(node.clone());
                     self.rec_search_down(child, trace)
                 } else {
@@ -55,20 +59,54 @@ impl BehaviorTree {
         }
     }
 
-    pub(crate) fn search_next(&self, trace: Vec<NodeHandle>, result: Status) -> Vec<NodeHandle> {
-        self.rec_search_up(trace, result)
+    pub(crate) fn search_next(&self, trace: Vec<NodeHandle>, result: &Status) -> Vec<NodeHandle> {
+        self.rec_search_up(trace, result, None)
     }
 
-    fn rec_search_up(&self, mut trace: Vec<NodeHandle>, result: Status) -> Vec<NodeHandle> {
+    fn rec_search_up(&self, mut trace: Vec<NodeHandle>, result: &Status, id: Option<String>) -> Vec<NodeHandle> {
         match trace.pop() {
             Some(node) => {
+                println!("Searching up for {:?}", node.name);
                 match (node.element, result) {
-                    (NodeType::Fallback, Status::Failure) => { /* ... */ },
-                    (NodeType::Sequence, Status::Success) => { /* ... */ },
-                    (_,_) => self.rec_search_up(trace, result)
+                    (NodeType::Fallback, Status::Failure) | (NodeType::Sequence, Status::Success) => {
+                        // If previous node was not the last child, select next child and search down
+                        if let Some(id) = id {
+                            let next_id = node.children_ids.iter()
+                                .position(|x| *x == *id)
+                                .and_then(|i| node.children_ids.get(i + 1))
+                                .cloned();
+
+                            if let Some(next_id) = next_id {
+                                // Next child found, search down
+                                if let Some(child) = self.get_node_handle_by_id(next_id) {
+                                    trace.push(node.clone());
+                                    self.rec_search_down(child, trace)
+                                } else {
+                                    panic!("Did not find Handle for child");
+                                }
+                            } else {
+                                // No next child, i.e. previous was last child
+                                self.rec_search_up(trace, result, Some(node.id))
+                            }
+                        } else {
+                            // No previous node
+                            self.rec_search_up(trace, result, Some(node.id))
+                        }
+                    },
+                    (_,_) => self.rec_search_up(trace, result, Some(node.id))
                 }
             },
             None => return trace,
         }
+    }
+
+    fn get_node_handle_by_id(&self, id: String) -> Option<NodeHandle> {
+        let handle = self.handles
+            .iter()
+            .find(|x| x.id == id)
+            .cloned()
+            .expect("A handle was not present in the node handles!");
+
+        Some(handle)
     }
 }
