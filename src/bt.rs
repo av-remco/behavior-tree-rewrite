@@ -1,33 +1,27 @@
 use std::marker::PhantomData;
 
-use crate::nodes_bin::{node_handle::NodeHandle, node_index::NodeIndex};
+use crate::{execution::executor::{Executor, ExecutorFactory}, nodes_bin::{node_handle::NodeHandle, node_index::NodeIndex}};
 
 pub(crate) const CHANNEL_SIZE: usize = 20;
 
 pub struct BT<T: BuildState> {
-    pub name: String,
-    pub root: NodeHandle,
-    pub(crate) index: NodeIndex,
-    marker: std::marker::PhantomData<T>,
+    name: String,
+    pub(crate) root: NodeHandle,
+    pub(crate) node_index: NodeIndex,
+    executor_factory: ExecutorFactory,
+
+    state_data: T,
 }
 
 impl<T: BuildState> BT<T> {
-    fn into_state<S: BuildState>(self) -> BT<S> {
-        BT::<S> {
-            name: self.name,
-            root: self.root,
-            index: self.index,
-            marker: PhantomData,
-        }
-    }
-
     #[cfg(test)]
-    pub fn test_into_state<S: BuildState>(self) -> BT<S> {
-        BT::<S> {
+    pub fn test_into_state(self) -> BT<Processing> {
+        BT::<Processing> {
             name: self.name,
             root: self.root,
-            index: self.index,
-            marker: PhantomData,
+            node_index: self.node_index,
+            executor_factory: self.executor_factory,
+            state_data: Processing {},
         }
     }
 }
@@ -42,17 +36,36 @@ impl BT<Init> {
         Self {
             name,
             root,
-            index: NodeIndex::new(handles),
-            marker: PhantomData,
+            node_index: NodeIndex::new(handles),
+            executor_factory: ExecutorFactory {},
+            state_data: Init {},
         }
     }
 
+    pub fn set_executor(&mut self, executor_factory: ExecutorFactory) {
+        self.executor_factory = executor_factory;
+    }
+
     pub fn build(self) -> BT<Ready> {
-        let bt: BT<Processing> = self.into_state();
+        let bt= 
+            BT::<Processing> {
+                name: self.name,
+                root: self.root,
+                node_index: self.node_index,
+                executor_factory: self.executor_factory,
+                state_data: Processing {},
+            };
 
         // Some building logic
+        let exec = bt.executor_factory.create(&bt);
 
-        bt.into_state()
+        BT::<Ready> {
+            name: bt.name,
+            root: bt.root,
+            node_index: bt.node_index,
+            executor_factory: bt.executor_factory,
+            state_data: Ready { exec },
+        }
     }
 }
 
@@ -69,7 +82,9 @@ impl BT<Ready> {
 pub trait BuildState {}
 pub struct Init;
 pub struct Processing;
-pub struct Ready;
+pub struct Ready {
+    exec: Executor,
+}
 pub struct Executing;
 pub struct Done;
 

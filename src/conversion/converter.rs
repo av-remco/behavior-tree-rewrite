@@ -3,9 +3,9 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use crate::{BT, bt::Processing, execution::traversal::{search_next, search_start}, nodes_bin::{node_handle::NodeHandle, node_status::Status}};
 
 
-type BehaviorTreeMap = HashMap<(NodeHandle, Status), Option<NodeHandle>>;
+pub(crate) type BehaviorTreeMap = HashMap<(NodeHandle, Status), Option<NodeHandle>>;
 
-pub(crate) fn convert_bt(bt: &mut BT<Processing>) -> BehaviorTreeMap {
+pub(crate) fn convert_bt(bt: &BT<Processing>) -> BehaviorTreeMap {
     let mut map = HashMap::new();
     let mut visited = HashSet::new();
     let mut queue = VecDeque::new();

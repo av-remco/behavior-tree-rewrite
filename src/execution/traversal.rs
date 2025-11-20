@@ -20,7 +20,7 @@ fn rec_search_down<T: TraversalState + BuildState>(tree: &BT<T>, node: NodeHandl
                 Some(id) => id,
                 None => panic!("Found a selector without a child"),
             };
-            if let Some(child) = tree.index.get(id) {
+            if let Some(child) = tree.node_index.get(id) {
                 trace.push(node.clone());
                 rec_search_down(tree, child, trace)
             } else {
@@ -47,7 +47,7 @@ fn rec_search_up<T: TraversalState + BuildState>(tree: &BT<T>, mut trace: Vec<No
             if let Some(child) = previous_node_id
                 .as_ref()
                 .and_then(|id| next_sibling(&node, id))
-                .and_then(|next_id| tree.index.get(&next_id))
+                .and_then(|next_id| tree.node_index.get(&next_id))
             {
                 trace.push(node.clone());
                 return rec_search_down(tree, child, trace);
