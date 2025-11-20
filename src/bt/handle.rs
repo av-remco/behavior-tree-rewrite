@@ -185,7 +185,7 @@ pub trait Node: Sync + Send {
     async fn serve(self);
 }
 
-#[derive(PartialEq, Debug, Clone, Eq, Hash)]
+#[derive(PartialEq, Debug, Clone, Copy, Eq, Hash)]
 pub enum Status {
     Success,
     Failure,
