@@ -6,7 +6,7 @@ mod tests {
     use tokio::sync::mpsc::Receiver;
     use std::collections::HashMap;
     use tokio::time::{Duration, sleep};
-    use crate::bt::Converting;
+    use crate::bt::Processing;
     use crate::conversion::converter::convert_bt;
     use crate::execution::traversal::{search_next, search_start};
     use crate::logging::load_logger;
@@ -20,7 +20,7 @@ mod tests {
     async fn test_convert_simple_action_root() {
         let action = MockAction::new(1);
         let bt = BT::new(action.clone(), "test_tree");
-        let mut bt: BT<Converting> = bt.test_into_state();
+        let mut bt: BT<Processing> = bt.test_into_state();
 
         let map = convert_bt(&mut bt);
 
@@ -46,7 +46,7 @@ mod tests {
         let seq = Sequence::new(vec![cond.clone(), action.clone()]);
 
         let bt = BT::new(seq, "test_tree");
-        let mut bt: BT<Converting> = bt.test_into_state();
+        let mut bt: BT<Processing> = bt.test_into_state();
 
         let map = convert_bt(&mut bt);
         println!("{:?}", map);
@@ -90,7 +90,7 @@ mod tests {
         ]);
 
         let bt = BT::new(fb, "test_tree");
-        let mut bt: BT<Converting> = bt.test_into_state();
+        let mut bt: BT<Processing> = bt.test_into_state();
 
         let map = convert_bt(&mut bt);
 
@@ -125,7 +125,7 @@ mod tests {
         let seq = Sequence::new(vec![cond1.clone(), cond2.clone(), act.clone()]);
 
         let bt = BT::new(seq, "test_tree");
-        let mut bt: BT<Converting> = bt.test_into_state();
+        let mut bt: BT<Processing> = bt.test_into_state();
 
         let map = convert_bt(&mut bt);
 
@@ -172,7 +172,7 @@ mod tests {
         ]);
 
         let bt = BT::new(fb, "test_tree");
-        let mut bt: BT<Converting> = bt.test_into_state();
+        let mut bt: BT<Processing> = bt.test_into_state();
 
         let map = convert_bt(&mut bt);
 

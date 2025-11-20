@@ -1,8 +1,8 @@
-use crate::{BT, bt::{BuildState, Built, Converting, Executing}, nodes_bin::{node::NodeType, node_handle::NodeHandle, node_status::Status}};
+use crate::{BT, bt::{BuildState, Ready, Processing, Executing}, nodes_bin::{node::NodeType, node_handle::NodeHandle, node_status::Status}};
 
 trait TraversalState {}
-impl TraversalState for Converting {}
-impl TraversalState for Built {}
+impl TraversalState for Processing {}
+impl TraversalState for Ready {}
 impl TraversalState for Executing {}
 
 pub(crate) fn search_start<T: TraversalState + BuildState>(tree: &BT<T>) -> Vec<NodeHandle> {

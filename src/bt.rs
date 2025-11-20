@@ -11,8 +11,8 @@ pub struct BT<T: BuildState> {
     marker: std::marker::PhantomData<T>,
 }
 
-impl<T:BuildState> BT<T> {
-    fn into_state<S:BuildState>(self) -> BT<S> {
+impl<T: BuildState> BT<T> {
+    fn into_state<S: BuildState>(self) -> BT<S> {
         BT::<S> {
             name: self.name,
             root: self.root,
@@ -22,7 +22,7 @@ impl<T:BuildState> BT<T> {
     }
 
     #[cfg(test)]
-    pub fn test_into_state<S:BuildState>(self) -> BT<S> {
+    pub fn test_into_state<S: BuildState>(self) -> BT<S> {
         BT::<S> {
             name: self.name,
             root: self.root,
@@ -32,7 +32,7 @@ impl<T:BuildState> BT<T> {
     }
 }
 
-impl BT<Building> {
+impl BT<Init> {
     pub fn new<S: Into<String>>(root_node: NodeHandle, name: S) -> Self {
         BT::_new(root_node, name.into())
     }
@@ -47,24 +47,34 @@ impl BT<Building> {
         }
     }
 
-    pub fn build(self) -> BT<Built> {
-        let bt: BT<Converting> = self.into_state();
+    pub fn build(self) -> BT<Ready> {
+        let bt: BT<Processing> = self.into_state();
 
-        // Some logic
+        // Some building logic
 
         bt.into_state()
     }
 }
 
-pub trait BuildState {}
-pub struct Building;
-pub struct Converting;
-pub struct Built;
-pub struct Executing;
-pub struct Finished;
+impl BT<Ready> {
+    pub fn execute(self) -> BT<Done> {
+        let bt = self.into_state::<Executing>();
 
-impl BuildState for Building {}
-impl BuildState for Converting {}
-impl BuildState for Built {}
+        // Some execution logic
+
+        bt.into_state::<Done>()
+    }
+}
+
+pub trait BuildState {}
+pub struct Init;
+pub struct Processing;
+pub struct Ready;
+pub struct Executing;
+pub struct Done;
+
+impl BuildState for Init {}
+impl BuildState for Processing {}
+impl BuildState for Ready {}
 impl BuildState for Executing {}
-impl BuildState for Finished {}
+impl BuildState for Done {}
