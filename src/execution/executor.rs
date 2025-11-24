@@ -1,5 +1,13 @@
-use log::warn;
+use std::pin::Pin;
+use futures::future::select_all;
+use futures::{Future};
 
+use futures::FutureExt;
+use log::{debug, trace, warn};
+use tokio_tungstenite::tungstenite::http::status;
+
+use crate::nodes_bin::node_error::NodeError;
+use crate::nodes_bin::node_message::FutResponse;
 use crate::{BT, bt::Processing, conversion::converter::{BehaviorTreeMap, convert_bt}, execution::traversal::search_start, nodes_bin::{node::NodeType, node_handle::NodeHandle, node_message::{ChildMessage, ParentMessage}, node_status::Status}};
 
 // TODO: Not how Factory pattern works, but good enough for one executor
@@ -11,9 +19,16 @@ impl ExecutorFactory {
     }
 }
 
+#[derive(Debug)]
+enum FutResult {
+    Result(bool),
+    Node(NodeHandle, Status),
+}
+
 pub struct Executor {
     current_node: NodeHandle,
     map: BehaviorTreeMap,
+    active_conditions: Vec<NodeHandle>,
 }
 
 impl Executor {
@@ -27,37 +42,107 @@ impl Executor {
         Self {
             current_node,
             map,
+            active_conditions: vec![],
         }
     }
 
     pub(crate) async fn execute(&mut self) -> bool {
         loop {
-            let res = self.execute_node().await;
+            let mut futures = vec![];
 
-            if let Some(node) = self.map.get(&(self.current_node.clone(), res.into())).and_then(|x| x.clone()) {
-                self.current_node = node;
-            } else {
-                self.kill();
-                return res;
+            for handle in self.active_conditions.clone().iter_mut() {
+                futures.push(Self::monitor_condition(handle.clone()).boxed());
+            }
+            futures.push(self.execute_node().boxed());
+
+
+            let (result, index, _) = select_all(futures).await; // Listen out all actions
+            debug!("Future with index {:?} returned: {:?}", index,result);
+
+            match result {
+                FutResult::Result(res) => {
+                    let map_result = self
+                        .map
+                        .get(&(self.current_node.clone(), res.into()))
+                        .cloned()
+                        .flatten();
+
+                    // If no next node in the map, the behavior tree is finished
+                    let Some(next_node) = map_result else {
+                        self.kill().await;
+                        return res;
+                    };
+
+                    // If the previous node was a condition, keep monitoring it
+                    if let NodeType::Condition = self.current_node.element {
+                        self.active_conditions.push(self.current_node.clone());
+                    }
+
+                    self.current_node = next_node;
+                },
+                FutResult::Node(node, status) => {
+                    if let Err(err) = self.current_node.send(ChildMessage::Stop) {
+                        warn!("{:?} {:?} has error {:?}", self.current_node.element, self.current_node.name, err)
+                    }
+                    
+                    let map_result = self
+                        .map
+                        .get(&(node, status))
+                        .cloned()
+                        .flatten();
+
+                    // If no next node in the map, the behavior tree is finished
+                    let Some(next_node) = map_result else {
+                        self.kill().await;
+                        if let Some(res) = status.into() {
+                            return res;
+                        } else {
+                            panic!("Unexpected Status {:?}", status);
+                        }
+                    };
+
+                    self.current_node = next_node;
+
+                    // TODO: remove active condition > node
+                    self.active_conditions.truncate(index);
+                },
+            }            
+        }
+    }
+
+    async fn monitor_condition(mut node: NodeHandle) -> FutResult{
+        loop {
+            match node.listen().await {
+                Ok(msg) => {
+                    match msg {
+                        ParentMessage::Status(Status::Success) => return FutResult::Node(node.clone(), Status::Success),
+                        ParentMessage::Status(Status::Failure) => return FutResult::Node(node.clone(), Status::Failure),
+                        _ => {} // Other messages should not be possible
+                    }
+                },
+                Err(err) => {
+                    warn!("{:?} {:?} has error {:?}", node.element, node.name, err)
+                },
             }
         }
     }
 
-    async fn execute_node(&mut self) -> bool {
+    async fn execute_node(&mut self) -> FutResult {
         if let Err(err) = self.current_node.send(ChildMessage::Start) {
-            warn!("Node {:?} {:?} exited with error {:?}", self.current_node.element, self.current_node.name.clone(), err);
-            return false;
+            warn!("{:?} {:?} gave error {:?}", self.current_node.element, self.current_node.name.clone(), err);
+            return FutResult::Result(false);
         }
+
         loop {
             match self.current_node.listen().await {
                 Ok(msg) => {
                     if let Some(res) = self.process_parent_message(msg) {
-                        return res
+                        return FutResult::Result(res)
                     }
                 },
                 Err(err) => {
-                    warn!("Node {:?} {:?} has error {:?}", self.current_node.element, self.current_node.name.clone(), err);
-                    return false;
+                    warn!("{:?} {:?} has error {:?}", self.current_node.element, self.current_node.name.clone(), err);
+                    return FutResult::Result(false);
                 },
             }
         }
@@ -66,7 +151,7 @@ impl Executor {
     fn process_parent_message(&self, msg: ParentMessage) -> Option<bool>{
         match msg {
             ParentMessage::RequestStart => {
-                warn!("Node {:?} {:?} send unexpected RequestStart", self.current_node.element, self.current_node.name.clone());
+                warn!("{:?} {:?} send unexpected RequestStart", self.current_node.element, self.current_node.name.clone());
                 Some(false)
             },
             ParentMessage::Status(status) => match status {
@@ -79,19 +164,21 @@ impl Executor {
                     _ => None
                 },
             ParentMessage::Poison(err) => {
-                warn!("Node {:?} {:?} is poisoned with error: {:?}", self.current_node.element, self.current_node.name.clone(), err);
+                warn!("{:?} {:?} is poisoned with error: {:?}", self.current_node.element, self.current_node.name.clone(), err);
                 Some(false)
             },
             ParentMessage::Killed => {
-                warn!("Node {:?} {:?} has been killed", self.current_node.element, self.current_node.name.clone());
+                warn!("{:?} {:?} has been killed", self.current_node.element, self.current_node.name.clone());
                 Some(false)
             }, // This should not occur
         }
     }
 
-    fn kill(&self) {
-        if let Err(err) = self.current_node.send(ChildMessage::Kill) {
-            warn!("Node {:?} {:?} exited with error {:?}", self.current_node.element, self.current_node.name.clone(), err);
+    async fn kill(&mut self) {
+        self.current_node.kill().await;
+
+        for mut node in self.active_conditions.clone() {
+            node.kill().await;
         }
     }
 }

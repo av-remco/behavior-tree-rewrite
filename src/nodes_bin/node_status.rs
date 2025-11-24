@@ -34,3 +34,14 @@ impl Into<Status> for bool {
         }
     }
 }
+
+impl Into<Option<bool>> for Status {
+    fn into(self) -> Option<bool> {
+        match self {
+            Status::Success => Some(true),
+            Status::Failure => Some(false),
+            Status::Running => None,
+            Status::Idle => None,
+        }
+    }
+}
