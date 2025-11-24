@@ -146,7 +146,7 @@ impl<'a> DynamicEngine<'a> {
     }
 }
 
-impl Engine for DynamicEngine {
+impl<'a> Engine for DynamicEngine<'a> {
     async fn run(&mut self) -> bool {
         loop {
             self.start_current_node();
