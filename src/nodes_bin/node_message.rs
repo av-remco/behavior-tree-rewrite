@@ -23,7 +23,6 @@ impl ChildMessage {
 
 #[derive(PartialEq, Debug, Clone)]
 pub enum ParentMessage {
-    RequestStart,
     Status(Status),
     Poison(NodeError),
     Killed,

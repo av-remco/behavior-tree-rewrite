@@ -89,7 +89,7 @@ where
         match msg {
             ChildMessage::Kill => return Err(NodeError::KillError),
             ChildMessage::Start => self.update_status(Status::Running).await?,
-            ChildMessage::Stop => self.update_status(Status::Failure).await?, // TODO: implement .stop() method
+            ChildMessage::Stop => self.update_status(Status::Idle).await?, // TODO: implement .stop() method
         }
         Ok(())
     }

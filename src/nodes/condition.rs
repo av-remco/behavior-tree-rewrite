@@ -180,8 +180,8 @@ where
         match msg {
             ChildMessage::Start => self.start_workflow().await?,
             ChildMessage::Stop => {
-                let status = self.stop_workflow().await?;
-                self.update_status(status)?;
+                let _ = self.stop_workflow().await?;
+                self.update_status(Status::Idle)?;
             }
             ChildMessage::Kill => return Err(NodeError::KillError),
         }

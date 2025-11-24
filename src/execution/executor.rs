@@ -84,6 +84,9 @@ impl Executor {
                     if let Err(err) = self.current_node.send(ChildMessage::Stop) {
                         warn!("{:?} {:?} has error {:?}", self.current_node.element, self.current_node.name, err)
                     }
+                    if let Err(err) = self.current_node.listen().await {
+                        warn!("{:?} {:?} has error {:?}", self.current_node.element, self.current_node.name, err)
+                    }
                     
                     let map_result = self
                         .map
@@ -103,8 +106,15 @@ impl Executor {
 
                     self.current_node = next_node;
 
-                    // TODO: remove active condition > node
-                    self.active_conditions.truncate(index);
+                    let to_stop = self.active_conditions.split_off(index + 1);
+                    for mut handle in to_stop {
+                        if let Err(err) = handle.send(ChildMessage::Stop) {
+                            warn!("{:?} {:?} has error {:?}", self.current_node.element, self.current_node.name, err)
+                        }
+                        if let Err(err) = handle.listen().await {
+                            warn!("{:?} {:?} has error {:?}", self.current_node.element, self.current_node.name, err)
+                        }
+                    }
                 },
             }            
         }
@@ -150,10 +160,6 @@ impl Executor {
 
     fn process_parent_message(&self, msg: ParentMessage) -> Option<bool>{
         match msg {
-            ParentMessage::RequestStart => {
-                warn!("{:?} {:?} send unexpected RequestStart", self.current_node.element, self.current_node.name.clone());
-                Some(false)
-            },
             ParentMessage::Status(status) => match status {
                     Status::Success => {
                         Some(true)

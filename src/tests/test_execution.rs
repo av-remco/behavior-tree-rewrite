@@ -215,7 +215,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_condition_fails_mid_sequence() {
-        load_logger();
         // Cond1 -> Cond2 -> Action1
         let handle1 = Handle::new(1);
         let handle2 = Handle::new(1);
@@ -250,7 +249,7 @@ mod tests {
         let cond3 = Condition::new("c3", h3.clone(), |x| x > 0);
         let action1 = MockAction::new(1);
 
-        let seq = Sequence::new(vec![cond1, cond2, cond3, action1]);
+        let seq = Fallback::new(vec![cond1, cond2, cond3, action1]);
         let bt = BT::new(seq, "");
 
         let (res, _) = tokio::join!(
@@ -269,29 +268,33 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_conditions_toggle_fail_then_recover() {
-        // Cond1 -> Cond2 -> Action1
+    async fn test_stop_monitoring_condition() {
+        load_logger();
+        // Fallback
+        //  Sequence
+        //      Condition1
+        //      Condition2
+        //  Action
         let h1 = Handle::new(1);
-        let h2 = Handle::new(1);
+        let h2 = Handle::new(0);
 
         let cond1 = Condition::new("c1", h1.clone(), |x| x > 0);
         let cond2 = Condition::new("c2", h2.clone(), |x| x > 0);
         let action1 = MockAction::new(1);
 
-        let seq = Sequence::new(vec![cond1, cond2, action1]);
+        let seq = Fallback::new(vec![Sequence::new(vec![cond1, cond2]), action1]);
         let bt = BT::new(seq, "");
 
         let (res, _) = tokio::join!(
             bt.build().execute(),
             async {
-                sleep(Duration::from_millis(150)).await;
-                h2.set(0).await; // cond2 fails mid-execution
-                sleep(Duration::from_millis(150)).await;
-                h2.set(1).await; // cond2 recovers
+                sleep(Duration::from_millis(100)).await;
+                h1.set(0).await; // first condition fails
+                sleep(Duration::from_millis(100)).await;
+                h2.set(1).await; // Second condition succeeds
             }
         );
 
-        assert_eq!(res.result(), true, "Tree should eventually succeed after condition recovers");
+        assert_eq!(res.result(), true);
     }
-
 }
