@@ -1,55 +1,46 @@
-use std::pin::Pin;
-
 use futures::future::select_all;
-use futures::{Future, FutureExt};
+use futures::FutureExt;
 use log::{trace, warn};
 
 use crate::bt::Ready;
 use crate::execution::executor_factory::Engine;
-use crate::{BT, conversion::converter::{BehaviorTreeMap, convert_bt}, execution::traversal::search_start, nodes_bin::{node::NodeType, node_handle::NodeHandle, node_message::{ChildMessage, FutResult, ParentMessage}, node_status::Status}};
+use crate::execution::flat_map_engine::FutureVec;
+use crate::execution::traversal::search_next;
+use crate::{BT, execution::traversal::search_start, nodes_bin::{node::NodeType, node_handle::NodeHandle, node_message::{ChildMessage, FutResult, ParentMessage}, node_status::Status}};
 
-pub type FutureVec<'a> = Vec<Pin<Box<dyn Future<Output = FutResult> + Send + 'a>>>;
-
-pub(crate) struct FlatMapEngine {
-    current_node: NodeHandle,
-    map: BehaviorTreeMap,
+pub(crate) struct DynamicEngine<'a> {
+    bt_ref: &'a BT<Ready>,
+    current_trace: Vec<NodeHandle>,
     active_conditions: Vec<NodeHandle>,
 }
 
-impl FlatMapEngine {
-    pub(crate) fn new(tree: &BT<Ready>) -> FlatMapEngine {
-        let current_node = search_start(tree)
-            .last()
-            .cloned()
-            .expect("No initial node found for behavior tree");
-
-        let map = convert_bt(tree);
-
+impl<'a> DynamicEngine<'a> {
+    pub(crate) fn new(tree: &'a BT<Ready>) -> DynamicEngine {
         Self {
-            current_node,
-            map,
+            bt_ref: tree,
+            current_trace: search_start(tree),
             active_conditions: vec![],
         }
     }
 
     async fn handle_current_node_finished(&mut self, status: bool) -> Option<bool>{
-        let Some(next_node) = self.lookup_next(self.current_node.clone(), status) else {
+        let Some(next_node) = self.lookup_next(self.current_trace.clone(), status) else {
             // The tree is finished
             self.kill_running().await;
             return Some(status);
         };
 
         // If the previous node was a condition, keep monitoring it
-        if let NodeType::Condition = self.current_node.element {
-            self.active_conditions.push(self.current_node.clone());
+        if let NodeType::Condition = self.current_trace.element {
+            self.active_conditions.push(self.current_trace.clone());
         }
 
-        self.current_node = next_node;
+        self.current_trace = next_node;
         None
     }
 
     async fn handle_condition_trigger(&mut self, node: NodeHandle, status: bool, index: usize) -> Option<bool> {
-        self.current_node.stop().await;
+        self.current_trace.stop().await;
         self.stop_conditions_after_idx(index).await;
 
         let Some(next_node) = self.lookup_next(node, status) else {
@@ -58,12 +49,12 @@ impl FlatMapEngine {
             return Some(status);
         };
 
-        self.current_node = next_node;
+        self.current_trace = next_node;
         None
     }
 
-    fn lookup_next(&self, node: NodeHandle, status: bool) -> Option<NodeHandle>{
-        self.map.get(&(node, status.into())).cloned().flatten()
+    fn lookup_next(&self, node: NodeHandle, status: bool) -> Vec<NodeHandle>{
+        search_next(tree, self.current_trace, &status.into())
     }
 
     async fn stop_conditions_after_idx(&mut self, idx: usize) {
@@ -73,8 +64,8 @@ impl FlatMapEngine {
     }
 
     fn start_current_node(&self) {
-        if let Err(err) = self.current_node.send(ChildMessage::Start) {
-            panic!("{:?} {:?} gave error {:?}", self.current_node.element, self.current_node.name.clone(), err);
+        if let Err(err) = self.current_trace.send(ChildMessage::Start) {
+            panic!("{:?} {:?} gave error {:?}", self.current_trace.element, self.current_trace.name.clone(), err);
         }
     }
 
@@ -110,14 +101,14 @@ impl FlatMapEngine {
 
     async fn run_current_node(&mut self) -> FutResult {
         loop {
-            match self.current_node.listen().await {
+            match self.current_trace.listen().await {
                 Ok(msg) => {
                     if let Some(res) = self.process_parent_message(msg) {
                         return FutResult::CurrentNode(res)
                     }
                 },
                 Err(err) => {
-                    warn!("{:?} {:?} has error {:?}", self.current_node.element, self.current_node.name.clone(), err);
+                    warn!("{:?} {:?} has error {:?}", self.current_trace.element, self.current_trace.name.clone(), err);
                     return FutResult::CurrentNode(false);
                 },
             }
@@ -136,18 +127,18 @@ impl FlatMapEngine {
                     _ => None
                 },
             ParentMessage::Poison(err) => {
-                warn!("{:?} {:?} is poisoned with error: {:?}", self.current_node.element, self.current_node.name.clone(), err);
+                warn!("{:?} {:?} is poisoned with error: {:?}", self.current_trace.element, self.current_trace.name.clone(), err);
                 Some(false)
             },
             ParentMessage::Killed => {
-                warn!("{:?} {:?} has been killed", self.current_node.element, self.current_node.name.clone());
+                warn!("{:?} {:?} has been killed", self.current_trace.element, self.current_trace.name.clone());
                 Some(false)
             },
         }
     }
 
     async fn kill_running(&mut self) {
-        self.current_node.kill().await;
+        self.current_trace.kill().await;
 
         for mut con in self.active_conditions.clone() {
             con.kill().await;
@@ -155,7 +146,7 @@ impl FlatMapEngine {
     }
 }
 
-impl Engine for FlatMapEngine {
+impl Engine for DynamicEngine {
     async fn run(&mut self) -> bool {
         loop {
             self.start_current_node();
