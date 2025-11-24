@@ -4,18 +4,20 @@ use futures::future::select_all;
 use futures::{Future, FutureExt};
 use log::{trace, warn};
 
-use crate::{BT, bt::Processing, conversion::converter::{BehaviorTreeMap, convert_bt}, execution::traversal::search_start, nodes_bin::{node::NodeType, node_handle::NodeHandle, node_message::{ChildMessage, FutResult, ParentMessage}, node_status::Status}};
+use crate::bt::Ready;
+use crate::execution::executor_factory::Engine;
+use crate::{BT, conversion::converter::{BehaviorTreeMap, convert_bt}, execution::traversal::search_start, nodes_bin::{node::NodeType, node_handle::NodeHandle, node_message::{ChildMessage, FutResult, ParentMessage}, node_status::Status}};
 
 type FutureVec<'a> = Vec<Pin<Box<dyn Future<Output = FutResult> + Send + 'a>>>;
 
-pub struct Executor {
+pub(crate) struct FlatMapEngine {
     current_node: NodeHandle,
     map: BehaviorTreeMap,
     active_conditions: Vec<NodeHandle>,
 }
 
-impl Executor {
-    pub(crate) fn new(tree: &BT<Processing>) -> Executor {
+impl FlatMapEngine {
+    pub(crate) fn new(tree: &BT<Ready>) -> FlatMapEngine {
         let current_node = search_start(tree)
             .last()
             .cloned()
@@ -27,25 +29,6 @@ impl Executor {
             current_node,
             map,
             active_conditions: vec![],
-        }
-    }
-
-    pub(crate) async fn execute(&mut self) -> bool {
-        loop {
-            self.start_current_node();
-
-            let futures: FutureVec = self.build_listener_futures();
-            let (result, index, _) = select_all(futures).await;
-            trace!("Future with index {:?} returned: {:?}", index,result);
-
-            if let Some(res) = match result {
-                // Current node finished
-                FutResult::CurrentNode(res) => self.handle_current_node_finished(res).await,
-                // Previous condition switched
-                FutResult::Condition(node, status) => self.handle_condition_trigger(node, status, index).await,
-            } {
-                return res;
-            }
         }
     }
 
@@ -168,6 +151,27 @@ impl Executor {
 
         for mut con in self.active_conditions.clone() {
             con.kill().await;
+        }
+    }
+}
+
+impl Engine for FlatMapEngine {
+    async fn execute(&mut self) -> bool {
+        loop {
+            self.start_current_node();
+
+            let futures: FutureVec = self.build_listener_futures();
+            let (result, index, _) = select_all(futures).await;
+            trace!("Future with index {:?} returned: {:?}", index,result);
+
+            if let Some(res) = match result {
+                // Current node finished
+                FutResult::CurrentNode(res) => self.handle_current_node_finished(res).await,
+                // Previous condition switched
+                FutResult::Condition(node, status) => self.handle_condition_trigger(node, status, index).await,
+            } {
+                return res;
+            }
         }
     }
 }

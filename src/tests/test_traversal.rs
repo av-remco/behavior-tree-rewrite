@@ -6,7 +6,7 @@ mod tests {
     use tokio::sync::mpsc::Receiver;
     use std::collections::HashMap;
     use tokio::time::{Duration, sleep};
-    use crate::bt::Processing;
+    use crate::bt::Ready;
     use crate::conversion::converter::convert_bt;
     use crate::execution::traversal::{search_next, search_start};
     use crate::logging::load_logger;
@@ -20,8 +20,8 @@ mod tests {
     #[tokio::test]
     async fn test_auto_failure() {
         let action1 = Failure::new();
-        let bt = BT::new(action1.clone(), "test_tree");
-        let bt: BT<Processing> = bt.test_into_state();
+        let bt = BT::new(action1.clone()).name("test_tree");
+        let bt: BT<Ready> = bt.test_into_state();
 
         let trace = search_start(&bt);
 
@@ -33,8 +33,8 @@ mod tests {
     #[tokio::test]
     async fn test_auto_success() {
         let action1 = Success::new();
-        let bt = BT::new(action1.clone(), "test_tree");
-        let bt: BT<Processing> = bt.test_into_state();
+        let bt = BT::new(action1.clone()).name("test_tree");
+        let bt: BT<Ready> = bt.test_into_state();
 
         let trace = search_start(&bt);
 
@@ -46,8 +46,8 @@ mod tests {
     #[tokio::test]
     async fn test_condition_true_stops_at_condition() {
         let cond = Condition::new("cond1", Handle::new(5), |x| x > 0);
-        let bt = BT::new(cond.clone(), "test_tree");
-        let bt: BT<Processing> = bt.test_into_state();
+        let bt = BT::new(cond.clone()).name("test_tree");
+        let bt: BT<Ready> = bt.test_into_state();
 
         let trace = search_start(&bt);
 
@@ -62,8 +62,8 @@ mod tests {
         let a2 = Success::new();
         let seq = Sequence::new(vec![a1.clone(), a2.clone()]);
 
-        let bt = BT::new(seq.clone(), "test_tree");
-        let bt: BT<Processing> = bt.test_into_state();
+        let bt = BT::new(seq.clone()).name("test_tree");
+        let bt: BT<Ready> = bt.test_into_state();
 
         let trace = search_start(&bt);
 
@@ -79,8 +79,8 @@ mod tests {
         let a2 = Success::new();
 
         let seq = Sequence::new(vec![cond.clone(), a2.clone()]);
-        let bt = BT::new(seq.clone(), "test_tree");
-        let bt: BT<Processing> = bt.test_into_state();
+        let bt = BT::new(seq.clone()).name("test_tree");
+        let bt: BT<Ready> = bt.test_into_state();
 
         let trace = search_start(&bt);
 
@@ -96,8 +96,8 @@ mod tests {
         let succ = Success::new();
 
         let fb = Fallback::new(vec![fail1.clone(), succ.clone()]);
-        let bt = BT::new(fb.clone(), "test_tree");
-        let bt: BT<Processing> = bt.test_into_state();
+        let bt = BT::new(fb.clone()).name("test_tree");
+        let bt: BT<Ready> = bt.test_into_state();
 
         let trace = search_start(&bt);
 
@@ -113,8 +113,8 @@ mod tests {
         let a2  = Success::new();
 
         let fb = Fallback::new(vec![cond.clone(), a2.clone()]);
-        let bt = BT::new(fb.clone(), "test_tree");
-        let bt: BT<Processing> = bt.test_into_state();
+        let bt = BT::new(fb.clone()).name("test_tree");
+        let bt: BT<Ready> = bt.test_into_state();
 
         let trace = search_start(&bt);
 
@@ -139,8 +139,8 @@ mod tests {
         let fb = Fallback::new(vec![fail.clone(), act.clone()]);
 
         let seq = Sequence::new(vec![cond.clone(), fb.clone()]);
-        let bt = BT::new(seq.clone(), "test_tree");
-        let bt: BT<Processing> = bt.test_into_state();
+        let bt = BT::new(seq.clone()).name("test_tree");
+        let bt: BT<Ready> = bt.test_into_state();
 
         let trace = search_start(&bt);
 
@@ -166,8 +166,8 @@ mod tests {
         let a2 = Success::new();
         let fb = Fallback::new(vec![seq.clone(), a2.clone()]);
 
-        let bt = BT::new(fb.clone(), "test_tree");
-        let bt: BT<Processing> = bt.test_into_state();
+        let bt = BT::new(fb.clone()).name("test_tree");
+        let bt: BT<Ready> = bt.test_into_state();
 
         let trace = search_start(&bt);
 
@@ -190,8 +190,8 @@ mod tests {
         let a2 = Success::new();
 
         let seq = Sequence::new(vec![cond.clone(), a1.clone(), a2.clone()]);
-        let bt = BT::new(seq.clone(), "test_tree");
-        let bt: BT<Processing> = bt.test_into_state();
+        let bt = BT::new(seq.clone()).name("test_tree");
+        let bt: BT<Ready> = bt.test_into_state();
 
         // First search: stops at condition
         let start = search_start(&bt);
@@ -215,8 +215,8 @@ mod tests {
         let a1 = Success::new();
 
         let seq = Sequence::new(vec![cond.clone(), a1.clone()]);
-        let bt = BT::new(seq.clone(), "test_tree");
-        let bt: BT<Processing> = bt.test_into_state();
+        let bt = BT::new(seq.clone()).name("test_tree");
+        let bt: BT<Ready> = bt.test_into_state();
 
         let start = search_start(&bt);
         assert_eq!(start, vec![seq.clone(), cond.clone()]);
@@ -238,8 +238,8 @@ mod tests {
         let a1 = Success::new();
 
         let fb = Fallback::new(vec![cond.clone(), a1.clone()]);
-        let bt = BT::new(fb.clone(), "test_tree");
-        let bt: BT<Processing> = bt.test_into_state();
+        let bt = BT::new(fb.clone()).name("test_tree");
+        let bt: BT<Ready> = bt.test_into_state();
 
         let start = search_start(&bt);
         assert_eq!(start, vec![fb.clone(), cond.clone()]);
@@ -264,8 +264,8 @@ mod tests {
         let a1 = Success::new();
 
         let fb = Fallback::new(vec![cond.clone(), a1.clone()]);
-        let bt = BT::new(fb.clone(), "test_tree");
-        let bt: BT<Processing> = bt.test_into_state();
+        let bt = BT::new(fb.clone()).name("test_tree");
+        let bt: BT<Ready> = bt.test_into_state();
 
         let start = search_start(&bt);
         assert_eq!(start, vec![fb.clone(), cond.clone()]);
@@ -292,8 +292,8 @@ mod tests {
         let a2 = Success::new();
         let fb = Fallback::new(vec![seq.clone(), a2.clone()]);
 
-        let bt = BT::new(fb.clone(), "test_tree");
-        let bt: BT<Processing> = bt.test_into_state();
+        let bt = BT::new(fb.clone()).name("test_tree");
+        let bt: BT<Ready> = bt.test_into_state();
 
         let start = search_start(&bt);
         assert_eq!(start, vec![
@@ -322,8 +322,8 @@ mod tests {
 
         let a1 = Success::new();
 
-        let bt = BT::new(a1.clone(), "test_tree");
-        let bt: BT<Processing> = bt.test_into_state();
+        let bt = BT::new(a1.clone()).name("test_tree");
+        let bt: BT<Ready> = bt.test_into_state();
 
         // Try search_next after the root returns any Status (Success or Failure)
         let fst_trace = search_start(&bt);

@@ -1,10 +1,27 @@
-use crate::{BT, bt::Processing, execution::executor::Executor};
+use crate::{BT, bt::Ready, execution::flat_map_engine::FlatMapEngine};
 
 // TODO: Not how Factory pattern works, but good enough for one executor
-pub struct ExecutorFactory {}
 
-impl ExecutorFactory {
-    pub(crate) fn create(&self, tree: &BT<Processing>) -> Executor {
-        Executor::new(tree)
+pub(crate) trait Engine {
+    async fn execute(&mut self) -> bool;
+}
+
+pub enum Engines {
+    Default,
+}
+
+pub(crate) struct EngineFactory {
+    pub engine: Engines,
+}
+
+impl EngineFactory {
+    pub(crate) fn set(&mut self, engine: Engines) {
+        self.engine = engine
+    }
+
+    pub(crate) fn create(&self, tree: &BT<Ready>) -> impl Engine {
+        match self.engine {
+            Engines::Default => FlatMapEngine::new(tree),
+        }
     }
 }
