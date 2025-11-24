@@ -1,29 +1,12 @@
 use std::pin::Pin;
+
 use futures::future::select_all;
-use futures::{Future};
+use futures::{Future, FutureExt};
+use log::{trace, warn};
 
-use futures::FutureExt;
-use log::{debug, trace, warn};
-use tokio_tungstenite::tungstenite::http::status;
+use crate::{BT, bt::Processing, conversion::converter::{BehaviorTreeMap, convert_bt}, execution::traversal::search_start, nodes_bin::{node::NodeType, node_handle::NodeHandle, node_message::{ChildMessage, FutResult, ParentMessage}, node_status::Status}};
 
-use crate::nodes_bin::node_error::NodeError;
-use crate::nodes_bin::node_message::FutResponse;
-use crate::{BT, bt::Processing, conversion::converter::{BehaviorTreeMap, convert_bt}, execution::traversal::search_start, nodes_bin::{node::NodeType, node_handle::NodeHandle, node_message::{ChildMessage, ParentMessage}, node_status::Status}};
-
-// TODO: Not how Factory pattern works, but good enough for one executor
-pub struct ExecutorFactory {}
-
-impl ExecutorFactory {
-    pub(crate) fn create(&self, tree: &BT<Processing>) -> Executor {
-        Executor::new(tree)
-    }
-}
-
-#[derive(Debug)]
-enum FutResult {
-    Result(bool),
-    Node(NodeHandle, Status),
-}
+type FutureVec<'a> = Vec<Pin<Box<dyn Future<Output = FutResult> + Send + 'a>>>;
 
 pub struct Executor {
     current_node: NodeHandle,
@@ -37,8 +20,9 @@ impl Executor {
             .last()
             .cloned()
             .expect("No initial node found for behavior tree");
-        
+
         let map = convert_bt(tree);
+
         Self {
             current_node,
             map,
@@ -48,85 +32,93 @@ impl Executor {
 
     pub(crate) async fn execute(&mut self) -> bool {
         loop {
-            let mut futures = vec![];
+            self.start_current_node();
+            let futures: FutureVec = self.build_listener_futures();
 
-            for handle in self.active_conditions.clone().iter_mut() {
-                futures.push(Self::monitor_condition(handle.clone()).boxed());
+            // Wait for first message
+            let (result, index, _) = select_all(futures).await;
+            trace!("Future with index {:?} returned: {:?}", index,result);
+
+            if let Some(res) = match result {
+                // Current node finished
+                FutResult::CurrentNode(res) => self.process_return_value(res).await,
+                // Previous condition switched
+                FutResult::Condition(node, status) => self.process_condition(node, status, index).await,
+            } {
+                return res;
             }
-            futures.push(self.execute_node().boxed());
-
-
-            let (result, index, _) = select_all(futures).await; // Listen out all actions
-            debug!("Future with index {:?} returned: {:?}", index,result);
-
-            match result {
-                FutResult::Result(res) => {
-                    let map_result = self
-                        .map
-                        .get(&(self.current_node.clone(), res.into()))
-                        .cloned()
-                        .flatten();
-
-                    // If no next node in the map, the behavior tree is finished
-                    let Some(next_node) = map_result else {
-                        self.kill().await;
-                        return res;
-                    };
-
-                    // If the previous node was a condition, keep monitoring it
-                    if let NodeType::Condition = self.current_node.element {
-                        self.active_conditions.push(self.current_node.clone());
-                    }
-
-                    self.current_node = next_node;
-                },
-                FutResult::Node(node, status) => {
-                    if let Err(err) = self.current_node.send(ChildMessage::Stop) {
-                        warn!("{:?} {:?} has error {:?}", self.current_node.element, self.current_node.name, err)
-                    }
-                    if let Err(err) = self.current_node.listen().await {
-                        warn!("{:?} {:?} has error {:?}", self.current_node.element, self.current_node.name, err)
-                    }
-                    
-                    let map_result = self
-                        .map
-                        .get(&(node, status))
-                        .cloned()
-                        .flatten();
-
-                    // If no next node in the map, the behavior tree is finished
-                    let Some(next_node) = map_result else {
-                        self.kill().await;
-                        if let Some(res) = status.into() {
-                            return res;
-                        } else {
-                            panic!("Unexpected Status {:?}", status);
-                        }
-                    };
-
-                    self.current_node = next_node;
-
-                    let to_stop = self.active_conditions.split_off(index + 1);
-                    for mut handle in to_stop {
-                        if let Err(err) = handle.send(ChildMessage::Stop) {
-                            warn!("{:?} {:?} has error {:?}", self.current_node.element, self.current_node.name, err)
-                        }
-                        if let Err(err) = handle.listen().await {
-                            warn!("{:?} {:?} has error {:?}", self.current_node.element, self.current_node.name, err)
-                        }
-                    }
-                },
-            }            
         }
     }
 
-    async fn monitor_condition(mut node: NodeHandle) -> FutResult{
+    fn map(&self, node: NodeHandle, status: bool) -> Option<NodeHandle>{
+        self.map
+            .get(&(node, status.into()))
+            .cloned()
+            .flatten()
+    }
+
+    async fn stop_next_conditions(&mut self, index: usize) {
+        for mut condition in self.active_conditions.split_off(index + 1) {
+            condition.stop().await
+        }
+    }
+
+    async fn process_condition(&mut self, node: NodeHandle, status: bool, index: usize) -> Option<bool> {
+        self.current_node.stop().await;
+        self.stop_next_conditions(index).await;
+
+        let Some(next_node) = self.map(node, status) else {
+            // The tree is finished
+            self.kill().await;
+            return Some(status);
+        };
+
+        self.current_node = next_node;
+        None
+    }
+
+    async fn process_return_value(&mut self, status: bool) -> Option<bool>{
+        let Some(next_node) = self.map(self.current_node.clone(), status) else {
+            // The tree is finished
+            self.kill().await;
+            return Some(status);
+        };
+
+        // If the previous node was a condition, keep monitoring it
+        if let NodeType::Condition = self.current_node.element {
+            self.active_conditions.push(self.current_node.clone());
+        }
+
+        self.current_node = next_node;
+        None
+    }
+
+    fn build_listener_futures<'a>(&'a mut self) -> FutureVec<'a>{
+        let mut futures = vec![];
+
+        // Futures for all active conditions
+        for handle in self.active_conditions.clone().iter_mut() {
+            futures.push(Self::run_condition(handle.clone()).boxed());
+        }
+
+        // Future for current action
+        futures.push(self.run_current_node().boxed());
+        futures
+    }
+
+    fn start_current_node(&self) {
+        if let Err(err) = self.current_node.send(ChildMessage::Start) {
+            panic!("{:?} {:?} gave error {:?}", self.current_node.element, self.current_node.name.clone(), err);
+        }
+    }
+
+    async fn run_condition(mut node: NodeHandle) -> FutResult{
         loop {
             match node.listen().await {
                 Ok(msg) => {
                     match msg {
-                        ParentMessage::Status(Status::Success) => return FutResult::Node(node.clone(), Status::Success),
-                        ParentMessage::Status(Status::Failure) => return FutResult::Node(node.clone(), Status::Failure),
+                        ParentMessage::Status(Status::Success) => return FutResult::Condition(node.clone(), true),
+                        ParentMessage::Status(Status::Failure) => return FutResult::Condition(node.clone(), false),
                         _ => {} // Other messages should not be possible
                     }
                 },
@@ -137,22 +129,17 @@ impl Executor {
         }
     }
 
-    async fn execute_node(&mut self) -> FutResult {
-        if let Err(err) = self.current_node.send(ChildMessage::Start) {
-            warn!("{:?} {:?} gave error {:?}", self.current_node.element, self.current_node.name.clone(), err);
-            return FutResult::Result(false);
-        }
-
+    async fn run_current_node(&mut self) -> FutResult {
         loop {
             match self.current_node.listen().await {
                 Ok(msg) => {
                     if let Some(res) = self.process_parent_message(msg) {
-                        return FutResult::Result(res)
+                        return FutResult::CurrentNode(res)
                     }
                 },
                 Err(err) => {
                     warn!("{:?} {:?} has error {:?}", self.current_node.element, self.current_node.name.clone(), err);
-                    return FutResult::Result(false);
+                    return FutResult::CurrentNode(false);
                 },
             }
         }
@@ -176,7 +163,7 @@ impl Executor {
             ParentMessage::Killed => {
                 warn!("{:?} {:?} has been killed", self.current_node.element, self.current_node.name.clone());
                 Some(false)
-            }, // This should not occur
+            },
         }
     }
 

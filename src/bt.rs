@@ -1,6 +1,4 @@
-use anyhow::Error;
-
-use crate::{execution::executor::{Executor, ExecutorFactory}, nodes_bin::{node_handle::NodeHandle, node_index::NodeIndex}};
+use crate::{execution::{executor::Executor, executor_factory::ExecutorFactory}, nodes_bin::{node_handle::NodeHandle, node_index::NodeIndex}};
 
 pub(crate) const CHANNEL_SIZE: usize = 20;
 

@@ -1,15 +1,15 @@
 use std::hash::Hash;
 
 use anyhow::Result;
-use simple_xml_builder::XMLElement;
 
+use log::warn;
 use tokio::sync::broadcast::{Receiver, Sender};
 use uuid::Uuid;
 
 use crate::nodes_bin::{
     node::NodeType,
     node_error::NodeError,
-    node_message::{ChildMessage, FutResponse, ParentMessage},
+    node_message::{ChildMessage, ParentMessage},
 };
 
 #[derive(Debug)]
@@ -102,31 +102,18 @@ impl NodeHandle {
         }
     }
 
-    pub fn take_handles(&mut self) -> Vec<NodeHandle> {
+    pub(crate) fn take_handles(&mut self) -> Vec<NodeHandle> {
         let mut handles = std::mem::take(&mut self.handles);
         handles.push(self.clone());
         handles
     }
 
-    pub fn send(&self, msg: ChildMessage) -> Result<(), NodeError> {
+    pub(crate) fn send(&self, msg: ChildMessage) -> Result<(), NodeError> {
         self.tx.send(msg)?;
         Ok(())
     }
 
-    pub fn get_rx(&mut self) -> Receiver<ParentMessage> {
-        self.rx.resubscribe()
-    }
-
-    // Consuming and returning the receiver allows stacking it in a future vector
-    pub async fn run_listen(
-        mut rx: Receiver<ParentMessage>,
-        child_index: usize,
-    ) -> Result<FutResponse, NodeError> {
-        let msg = NodeHandle::_listen(&mut rx).await?;
-        Ok(FutResponse::Child(child_index, msg, rx)) // The rx is returned to ensure the channel is fully read
-    }
-
-    pub async fn listen(&mut self) -> Result<ParentMessage, NodeError> {
+    pub(crate) async fn listen(&mut self) -> Result<ParentMessage, NodeError> {
         NodeHandle::_listen(&mut self.rx).await
     }
 
@@ -134,31 +121,12 @@ impl NodeHandle {
         Ok(rx.recv().await?)
     }
 
-    pub fn get_xml(&self) -> XMLElement {
-        let element = match self.element {
-            NodeType::Condition => String::from("Decorator"), // Groot sees any condition as decorator
-            NodeType::Action => String::from("Action"),
-            NodeType::Sequence => String::from("Sequence"),
-            NodeType::Fallback => String::from("Fallback"),
-        };
-
-        let mut element = XMLElement::new(element);
-        element.add_attribute("name", &self.name);
-        element
-    }
-
-    pub fn get_json(&self) -> serde_json::value::Value {
-        if !self.children_names.is_empty() {
-            serde_json::json!({
-                "id": self.id.clone(),
-                "name": self.name.clone(),
-                "type": self.element.clone(),
-                "children": self.children_ids.clone()})
-        } else {
-            serde_json::json!({
-                "id": self.id.clone(),
-                "name": self.name.clone(),
-                "type": self.element.clone()})
+    pub(crate) async fn stop(&mut self) {
+        if let Err(err) = self.send(ChildMessage::Stop) {
+            warn!("{:?} {:?} has error {:?}", self.element, self.name, err)
+        }
+        if let Err(err) = self.listen().await {
+            warn!("{:?} {:?} has error {:?}", self.element, self.name, err)
         }
     }
 }

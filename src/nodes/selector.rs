@@ -2,10 +2,7 @@ use tokio::sync::broadcast::channel;
 
 use crate::{bt::CHANNEL_SIZE, nodes_bin::{node::NodeType, node_handle::NodeHandle}};
 
-pub struct Sequence {
-    children: Vec<NodeHandle>,
-    handles: Vec<NodeHandle>,
-}
+pub struct Sequence {}
 
 impl Sequence {
     pub fn new(
@@ -34,9 +31,7 @@ impl Sequence {
     }
 }
 
-pub struct Fallback {
-    children: Vec<NodeHandle>,
-}
+pub struct Fallback {}
 
 impl Fallback {
     pub fn new(

@@ -9,7 +9,7 @@ mod tests {
     use actify::Handle;
     use tokio::time::sleep;
 
-    use crate::{BT, Condition, Failure, Fallback, Sequence, Success, Wait, bt::Processing, logging::load_logger, nodes::action::mocking::MockAction, nodes_bin::node_status::Status};
+    use crate::{BT, Condition, Failure, Fallback, Sequence, Success, Wait, bt::Processing, nodes::action::mocking::MockAction, nodes_bin::node_status::Status};
 
     #[tokio::test]
     async fn test_execute_simple_success() {
@@ -269,7 +269,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_stop_monitoring_condition() {
-        load_logger();
         // Fallback
         //  Sequence
         //      Condition1

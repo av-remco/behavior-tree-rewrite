@@ -1,28 +1,20 @@
-use tokio::sync::broadcast::Receiver;
-
-use crate::nodes_bin::{node_error::NodeError, node_status::Status};
+use crate::nodes_bin::{node_error::NodeError, node_handle::NodeHandle, node_status::Status};
 
 #[derive(Debug)]
-pub enum FutResponse {
-    Parent(ChildMessage, Receiver<ChildMessage>),
-    Child(usize, ParentMessage, Receiver<ParentMessage>),
+pub(crate) enum FutResult {
+    CurrentNode(bool),
+    Condition(NodeHandle, bool),
 }
 
 #[derive(PartialEq, Debug, Clone)]
-pub enum ChildMessage {
+pub(crate) enum ChildMessage {
     Start,
     Stop,
     Kill,
 }
 
-impl ChildMessage {
-    pub fn is_kill(&self) -> bool {
-        *self == ChildMessage::Kill
-    }
-}
-
 #[derive(PartialEq, Debug, Clone)]
-pub enum ParentMessage {
+pub(crate) enum ParentMessage {
     Status(Status),
     Poison(NodeError),
     Killed,
