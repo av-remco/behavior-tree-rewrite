@@ -122,11 +122,15 @@ impl NodeHandle {
     }
 
     pub(crate) async fn stop(&mut self) {
-        if let Err(err) = self.send(ChildMessage::Stop) {
-            warn!("{:?} {:?} has error {:?}", self.element, self.name, err)
-        }
-        if let Err(err) = self.listen().await {
-            warn!("{:?} {:?} has error {:?}", self.element, self.name, err)
+        if self.tx.receiver_count() > 0 {
+            if let Err(err) = self.send(ChildMessage::Stop) {
+                warn!("{:?} {:?} has error {:?}", self.element, self.name, err)
+            }
+            if let Err(err) = self.listen().await {
+                warn!("{:?} {:?} has error {:?}", self.element, self.name, err)
+            }
+        } else {
+            log::debug!("{:?} {:?} already exited", self.element, self.name);
         }
     }
 }

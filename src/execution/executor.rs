@@ -33,54 +33,26 @@ impl Executor {
     pub(crate) async fn execute(&mut self) -> bool {
         loop {
             self.start_current_node();
-            let futures: FutureVec = self.build_listener_futures();
 
-            // Wait for first message
+            let futures: FutureVec = self.build_listener_futures();
             let (result, index, _) = select_all(futures).await;
             trace!("Future with index {:?} returned: {:?}", index,result);
 
             if let Some(res) = match result {
                 // Current node finished
-                FutResult::CurrentNode(res) => self.process_return_value(res).await,
+                FutResult::CurrentNode(res) => self.handle_current_node_finished(res).await,
                 // Previous condition switched
-                FutResult::Condition(node, status) => self.process_condition(node, status, index).await,
+                FutResult::Condition(node, status) => self.handle_condition_trigger(node, status, index).await,
             } {
                 return res;
             }
         }
     }
 
-    fn map(&self, node: NodeHandle, status: bool) -> Option<NodeHandle>{
-        self.map
-            .get(&(node, status.into()))
-            .cloned()
-            .flatten()
-    }
-
-    async fn stop_next_conditions(&mut self, index: usize) {
-        for mut condition in self.active_conditions.split_off(index + 1) {
-            condition.stop().await
-        }
-    }
-
-    async fn process_condition(&mut self, node: NodeHandle, status: bool, index: usize) -> Option<bool> {
-        self.current_node.stop().await;
-        self.stop_next_conditions(index).await;
-
-        let Some(next_node) = self.map(node, status) else {
+    async fn handle_current_node_finished(&mut self, status: bool) -> Option<bool>{
+        let Some(next_node) = self.lookup_next(self.current_node.clone(), status) else {
             // The tree is finished
-            self.kill().await;
-            return Some(status);
-        };
-
-        self.current_node = next_node;
-        None
-    }
-
-    async fn process_return_value(&mut self, status: bool) -> Option<bool>{
-        let Some(next_node) = self.map(self.current_node.clone(), status) else {
-            // The tree is finished
-            self.kill().await;
+            self.kill_running().await;
             return Some(status);
         };
 
@@ -91,6 +63,36 @@ impl Executor {
 
         self.current_node = next_node;
         None
+    }
+
+    async fn handle_condition_trigger(&mut self, node: NodeHandle, status: bool, index: usize) -> Option<bool> {
+        self.current_node.stop().await;
+        self.stop_conditions_after_idx(index).await;
+
+        let Some(next_node) = self.lookup_next(node, status) else {
+            // The tree is finished
+            self.kill_running().await;
+            return Some(status);
+        };
+
+        self.current_node = next_node;
+        None
+    }
+
+    fn lookup_next(&self, node: NodeHandle, status: bool) -> Option<NodeHandle>{
+        self.map.get(&(node, status.into())).cloned().flatten()
+    }
+
+    async fn stop_conditions_after_idx(&mut self, idx: usize) {
+        for mut condition in self.active_conditions.split_off(idx + 1) {
+            condition.stop().await
+        }
+    }
+
+    fn start_current_node(&self) {
+        if let Err(err) = self.current_node.send(ChildMessage::Start) {
+            panic!("{:?} {:?} gave error {:?}", self.current_node.element, self.current_node.name.clone(), err);
+        }
     }
 
     fn build_listener_futures<'a>(&'a mut self) -> FutureVec<'a>{
@@ -104,12 +106,6 @@ impl Executor {
         // Future for current action
         futures.push(self.run_current_node().boxed());
         futures
-    }
-
-    fn start_current_node(&self) {
-        if let Err(err) = self.current_node.send(ChildMessage::Start) {
-            panic!("{:?} {:?} gave error {:?}", self.current_node.element, self.current_node.name.clone(), err);
-        }
     }
 
     async fn run_condition(mut node: NodeHandle) -> FutResult{
@@ -167,11 +163,11 @@ impl Executor {
         }
     }
 
-    async fn kill(&mut self) {
+    async fn kill_running(&mut self) {
         self.current_node.kill().await;
 
-        for mut node in self.active_conditions.clone() {
-            node.kill().await;
+        for mut con in self.active_conditions.clone() {
+            con.kill().await;
         }
     }
 }
