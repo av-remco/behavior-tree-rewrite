@@ -1,4 +1,4 @@
-use std::marker::PhantomData;
+use anyhow::Error;
 
 use crate::{execution::executor::{Executor, ExecutorFactory}, nodes_bin::{node_handle::NodeHandle, node_index::NodeIndex}};
 
@@ -54,9 +54,8 @@ impl BT<Init> {
                 node_index: self.node_index,
                 executor_factory: self.executor_factory,
                 state_data: Processing {},
-            };
+            }; // State transition quite ugly, litter the code
 
-        // Some building logic
         let exec = bt.executor_factory.create(&bt);
 
         BT::<Ready> {
@@ -70,12 +69,31 @@ impl BT<Init> {
 }
 
 impl BT<Ready> {
-    pub fn execute(self) -> BT<Done> {
-        let bt = self.into_state::<Executing>();
+    pub async fn execute(self) -> BT<Done> {
+        let bt= 
+            BT::<Executing> {
+                name: self.name,
+                root: self.root,
+                node_index: self.node_index,
+                executor_factory: self.executor_factory,
+                state_data: Executing { exec: self.state_data.exec },
+            };
 
-        // Some execution logic
+        let res = bt.state_data.exec.execute().await;
 
-        bt.into_state::<Done>()
+        BT::<Done> {
+            name: bt.name,
+            root: bt.root,
+            node_index: bt.node_index,
+            executor_factory: bt.executor_factory,
+            state_data: Done { res },
+        }
+    }
+}
+
+impl BT<Done> {
+    pub fn result(&self) -> bool {
+        self.state_data.res
     }
 }
 
@@ -85,8 +103,12 @@ pub struct Processing;
 pub struct Ready {
     exec: Executor,
 }
-pub struct Executing;
-pub struct Done;
+pub struct Executing {
+    exec: Executor,
+}
+pub struct Done {
+    res: bool
+}
 
 impl BuildState for Init {}
 impl BuildState for Processing {}
