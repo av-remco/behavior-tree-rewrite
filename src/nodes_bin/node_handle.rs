@@ -40,7 +40,7 @@ impl Clone for NodeHandle {
 }
 
 impl NodeHandle {
-    pub fn new<T>(
+    pub(crate) fn new<T>(
         tx: Sender<ChildMessage>,
         rx: Receiver<ParentMessage>,
         element: NodeType,

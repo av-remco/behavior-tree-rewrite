@@ -1,11 +1,11 @@
 use crate::{BT, bt::{BuildState, Ready, Processing, Executing}, nodes_bin::{node::NodeType, node_handle::NodeHandle, node_status::Status}};
 
-trait TraversalState {}
+pub(crate) trait TraversalState {}
 impl TraversalState for Processing {}
 impl TraversalState for Ready {}
 impl TraversalState for Executing {}
 
-pub(crate) fn search_start<T: TraversalState + BuildState>(tree: &BT<T>) -> Vec<NodeHandle> {
+pub(crate) fn search_start(tree: &BT<impl TraversalState + BuildState>) -> Vec<NodeHandle> {
     rec_search_down(tree, tree.root.clone(), vec![])
 }
 
