@@ -25,3 +25,12 @@ impl Status {
         matches!(self, Status::Success)
     }
 }
+
+impl Into<Status> for bool {
+    fn into(self) -> Status {
+        match self {
+            true => Status::Success,
+            false => Status::Failure,
+        }
+    }
+}

@@ -7,8 +7,9 @@ mod tests {
     use std::time::Duration;
 
     use actify::Handle;
+    use tokio::time::sleep;
 
-    use crate::{BT, Condition, Failure, Fallback, Sequence, Success, Wait, bt::Processing, nodes::action::mocking::MockAction, nodes_bin::node_status::Status};
+    use crate::{BT, Condition, Failure, Fallback, Sequence, Success, Wait, bt::Processing, logging::load_logger, nodes::action::mocking::MockAction, nodes_bin::node_status::Status};
 
     #[tokio::test]
     async fn test_execute_simple_success() {
@@ -144,5 +145,29 @@ mod tests {
 
         let result = bt.execute().await;
         assert_eq!(result.result(), true);
+    }
+
+    //  Cond1
+    //    |
+    // Action1
+    #[tokio::test]
+    async fn test_root_restart_after_request() {
+        load_logger();
+        let handle = Handle::new(1);
+
+        let action1 = Success::new();
+        let cond1 = Condition::new("1", handle.clone(), |x| x > 0);
+        let seq = Sequence::new(vec![cond1, action1]);
+        let bt = BT::new(seq,"");
+
+        let (res, _) = tokio::join!(
+            bt.build().execute(),
+            async {
+                sleep(Duration::from_millis(200)).await;
+                handle.set(-1).await;
+            }
+        );
+
+        assert_eq!(res.result(), true);
     }
 }
