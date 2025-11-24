@@ -14,36 +14,38 @@ mod tests {
     #[tokio::test]
     async fn test_execute_simple_success() {
         let action = Success::new();
-        let bt = BT::new(action.clone()).name("test_tree");
+        let bt = BT::new().root(action.clone()).name("test_tree");
 
-        let result = bt.test_into_state().execute().await;
+        let result = bt.test_into_state().run().await;
         assert_eq!(result.result(), true);
     }
 
     #[tokio::test]
     async fn test_execute_simple_failure() {
         let action = Failure::new();
-        let bt = BT::new(action.clone()).name("test_tree");
+        let bt = BT::new().root(action.clone()).name("test_tree");
 
-        let result = bt.test_into_state().execute().await;
+        let result = bt.test_into_state().run().await;
         assert_eq!(result.result(), false);
     }
 
     #[tokio::test]
     async fn test_execute_condition_true() {
         let cond = Condition::new("cond_true", Handle::new(10), |x| x > 0);
-        let bt = BT::new(cond.clone()).name("test_tree");
+        let bt = BT::new()
+            .root(cond.clone())
+            .name("test_tree")
+            .run().await;
 
-        let result = bt.test_into_state().execute().await;
-        assert_eq!(result.result(), true);
+        assert_eq!(bt.result(), true);
     }
 
     #[tokio::test]
     async fn test_execute_condition_false() {
         let cond = Condition::new("cond_false", Handle::new(0), |x| x > 5);
-        let bt = BT::new(cond.clone()).name("test_tree");
+        let bt = BT::new().root(cond.clone()).name("test_tree");
 
-        let result = bt.test_into_state().execute().await;
+        let result = bt.test_into_state().run().await;
         assert_eq!(result.result(), false);
     }
 
@@ -53,9 +55,9 @@ mod tests {
         let a2 = Success::new();
         let seq = Sequence::new(vec![a1.clone(), a2.clone()]);
 
-        let bt = BT::new(seq.clone()).name("test_tree");
+        let bt = BT::new().root(seq.clone()).name("test_tree");
 
-        let result = bt.test_into_state().execute().await;
+        let result = bt.test_into_state().run().await;
         assert_eq!(result.result(), true);
     }
 
@@ -65,9 +67,9 @@ mod tests {
         let a2 = Failure::new();
         let seq = Sequence::new(vec![a1.clone(), a2.clone()]);
 
-        let bt = BT::new(seq.clone()).name("test_tree");
+        let bt = BT::new().root(seq.clone()).name("test_tree");
 
-        let result = bt.test_into_state().execute().await;
+        let result = bt.test_into_state().run().await;
         assert_eq!(result.result(), false);
     }
 
@@ -77,9 +79,9 @@ mod tests {
         let f1 = Failure::new();
         let fb = Fallback::new(vec![s1.clone(), f1.clone()]);
 
-        let bt = BT::new(fb.clone()).name("test_tree");
+        let bt = BT::new().root(fb.clone()).name("test_tree");
 
-        let result = bt.test_into_state().execute().await;
+        let result = bt.test_into_state().run().await;
         assert_eq!(result.result(), true);
     }
 
@@ -89,9 +91,9 @@ mod tests {
         let s1 = Success::new();
         let fb = Fallback::new(vec![f1.clone(), s1.clone()]);
 
-        let bt = BT::new(fb.clone()).name("test_tree");
+        let bt = BT::new().root(fb.clone()).name("test_tree");
 
-        let result = bt.test_into_state().execute().await;
+        let result = bt.test_into_state().run().await;
         assert_eq!(result.result(), true);
     }
 
@@ -101,9 +103,9 @@ mod tests {
         let f2 = Failure::new();
         let fb = Fallback::new(vec![f1.clone(), f2.clone()]);
 
-        let bt = BT::new(fb.clone()).name("test_tree");
+        let bt = BT::new().root(fb.clone()).name("test_tree");
 
-        let result = bt.test_into_state().execute().await;
+        let result = bt.test_into_state().run().await;
         assert_eq!(result.result(), false);
     }
 
@@ -119,9 +121,9 @@ mod tests {
         let fb = Fallback::new(vec![Failure::new(), Success::new()]);
         let seq = Sequence::new(vec![cond.clone(), fb.clone()]);
 
-        let bt = BT::new(seq.clone()).name("test_tree");
+        let bt = BT::new().root(seq.clone()).name("test_tree");
 
-        let result = bt.test_into_state().execute().await;
+        let result = bt.test_into_state().run().await;
 
         // sequence stops at cond → cond returns false → seq returns false
         assert_eq!(result.result(), false);
@@ -130,9 +132,9 @@ mod tests {
     #[tokio::test]
     async fn test_execute_wait_action() {
         let wait = Wait::new(Duration::from_millis(50));
-        let bt = BT::new(wait.clone()).name("test_tree");
+        let bt = BT::new().root(wait.clone()).name("test_tree");
 
-        let result = bt.test_into_state().execute().await;
+        let result = bt.test_into_state().run().await;
         assert_eq!(result.result(), true);
     }
 
@@ -146,17 +148,17 @@ mod tests {
         let action1 = MockAction::new(1);
         let cond1 = Condition::new("cond", handle.clone(), |x| x > 0);
         let seq = Sequence::new(vec![cond1, action1]);
-        let bt = BT::new(seq).name("test_tree");
+        let bt = BT::new().root(seq).name("test_tree");
 
-        let (res, _) = tokio::join!(
-            bt.test_into_state().execute(),
+        let (bt,_) = tokio::join!(
+            bt.test_into_state().run(),
             async {
                 sleep(Duration::from_millis(200)).await;
                 handle.set(-1).await;
             }
         );
 
-        assert_eq!(res.result(), false);
+        assert_eq!(bt.result(), false);
     }
 
     #[tokio::test]
@@ -168,10 +170,10 @@ mod tests {
         let action_err = MockAction::new_error(2);
         let action2 = MockAction::new(3);
         let seq = Sequence::new(vec![action1, action_err, action2]);
-        let bt = BT::new(seq).name("test_tree");
+        let bt = BT::new().root(seq).name("test_tree");
 
-        let res = bt.test_into_state().execute().await;
-        assert_eq!(res.result(), false);
+        let bt = bt.test_into_state().run().await;
+        assert_eq!(bt.result(), false);
     }
 
     #[tokio::test]
@@ -185,10 +187,10 @@ mod tests {
         let action1 = MockAction::new(1);
         
         let seq = Sequence::new(vec![cond1, cond2, action1]);
-        let bt = BT::new(seq).name("test_tree");
+        let bt = BT::new().root(seq).name("test_tree");
 
-        let (res, _, _) = tokio::join!(
-            bt.test_into_state().execute(),
+        let (bt, _, _) = tokio::join!(
+            bt.test_into_state().run(),
             async {
                 sleep(Duration::from_millis(200)).await;
                 handle2.set(0).await; // make cond2 fail mid-execution
@@ -199,7 +201,7 @@ mod tests {
             }
         );
 
-        assert_eq!(res.result(), false);
+        assert_eq!(bt.result(), false);
     }
 
     #[tokio::test]
@@ -213,17 +215,17 @@ mod tests {
         let action1 = MockAction::new(1);
         
         let seq = Sequence::new(vec![cond1, cond2, action1]);
-        let bt = BT::new(seq).name("test_tree");
+        let bt = BT::new().root(seq).name("test_tree");
 
-        let (res, _) = tokio::join!(
-            bt.test_into_state().execute(),
+        let (bt,_) = tokio::join!(
+            bt.test_into_state().run(),
             async {
                 sleep(Duration::from_millis(300)).await;
                 handle2.set(0).await; // cond2 now fails mid-sequence
             }
         );
 
-        assert_eq!(res.result(), false);
+        assert_eq!(bt.result(), false);
     }
 
     #[tokio::test]
@@ -239,10 +241,10 @@ mod tests {
         let action1 = MockAction::new(1);
 
         let seq = Fallback::new(vec![cond1, cond2, cond3, action1]);
-        let bt = BT::new(seq).name("test_tree");
+        let bt = BT::new().root(seq).name("test_tree");
 
-        let (res, _) = tokio::join!(
-            bt.test_into_state().execute(),
+        let (bt,_) = tokio::join!(
+            bt.test_into_state().run(),
             async {
                 sleep(Duration::from_millis(100)).await;
                 h1.set(1).await; // first condition passes
@@ -253,7 +255,7 @@ mod tests {
             }
         );
 
-        assert_eq!(res.result(), true);
+        assert_eq!(bt.result(), true);
     }
 
     #[tokio::test]
@@ -271,10 +273,10 @@ mod tests {
         let action1 = MockAction::new(1);
 
         let seq = Fallback::new(vec![Sequence::new(vec![cond1, cond2]), action1]);
-        let bt = BT::new(seq).name("test_tree");
+        let bt = BT::new().root(seq).name("test_tree");
 
-        let (res, _) = tokio::join!(
-            bt.test_into_state().execute(),
+        let (bt,_) = tokio::join!(
+            bt.test_into_state().run(),
             async {
                 sleep(Duration::from_millis(100)).await;
                 h1.set(0).await; // first condition fails
@@ -283,6 +285,6 @@ mod tests {
             }
         );
 
-        assert_eq!(res.result(), true);
+        assert_eq!(bt.result(), true);
     }
 }

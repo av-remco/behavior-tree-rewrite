@@ -156,7 +156,7 @@ impl FlatMapEngine {
 }
 
 impl Engine for FlatMapEngine {
-    async fn execute(&mut self) -> bool {
+    async fn run(&mut self) -> bool {
         loop {
             self.start_current_node();
 

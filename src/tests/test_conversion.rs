@@ -19,7 +19,7 @@ mod tests {
     #[tokio::test]
     async fn test_convert_simple_action_root() {
         let action = MockAction::new(1);
-        let bt = BT::new(action.clone()).name("test_tree");
+        let bt = BT::new().root(action.clone()).name("test_tree");
         let mut bt: BT<Ready> = bt.test_into_state();
 
         let map = convert_bt(&mut bt);
@@ -45,7 +45,7 @@ mod tests {
 
         let seq = Sequence::new(vec![cond.clone(), action.clone()]);
 
-        let bt = BT::new(seq).name("test_tree");
+        let bt = BT::new().root(seq).name("test_tree");
         let mut bt: BT<Ready> = bt.test_into_state();
 
         let map = convert_bt(&mut bt);
@@ -89,7 +89,7 @@ mod tests {
             a2.clone()
         ]);
 
-        let bt = BT::new(fb).name("test_tree");
+        let bt = BT::new().root(fb).name("test_tree");
         let mut bt: BT<Ready> = bt.test_into_state();
 
         let map = convert_bt(&mut bt);
@@ -124,7 +124,7 @@ mod tests {
 
         let seq = Sequence::new(vec![cond1.clone(), cond2.clone(), act.clone()]);
 
-        let bt = BT::new(seq).name("test_tree");
+        let bt = BT::new().root(seq).name("test_tree");
         let mut bt: BT<Ready> = bt.test_into_state();
 
         let map = convert_bt(&mut bt);
@@ -171,7 +171,7 @@ mod tests {
             a3.clone(),
         ]);
 
-        let bt = BT::new(fb).name("test_tree");
+        let bt = BT::new().root(fb).name("test_tree");
         let mut bt: BT<Ready> = bt.test_into_state();
 
         let map = convert_bt(&mut bt);

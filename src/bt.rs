@@ -6,9 +6,9 @@ pub(crate) const CHANNEL_SIZE: usize = 20;
 
 pub struct BT<T: BuildState> {
     name: String,
-    pub(crate) root: NodeHandle,
+    pub(crate) root: Option<NodeHandle>,
     pub(crate) node_index: NodeIndex,
-    executor_factory: EngineFactory,
+    engine_factory: EngineFactory,
     result: Option<bool>,
     marker: PhantomData<T>,
 }
@@ -19,7 +19,7 @@ impl<T: BuildState> BT<T> {
             name: self.name,
             root: self.root,
             node_index: self.node_index,
-            executor_factory: self.executor_factory,
+            engine_factory: self.engine_factory,
             result: self.result,
             marker: PhantomData,
         }
@@ -31,7 +31,7 @@ impl<T: BuildState> BT<T> {
             name: self.name,
             root: self.root,
             node_index: self.node_index,
-            executor_factory: self.executor_factory,
+            engine_factory: self.engine_factory,
             result: self.result,
             marker: PhantomData,
         }
@@ -39,33 +39,40 @@ impl<T: BuildState> BT<T> {
 }
 
 impl BT<Init> {
-    pub fn new(mut root: NodeHandle) -> Self {
-        let handles = root.take_handles();
+    pub fn new() -> Self {
         Self {
             name: "Unnamed Behavior Tree".to_string(),
-            root,
-            node_index: NodeIndex::new(handles),
-            executor_factory: EngineFactory { engine: Engines::Default },
+            root: None,
+            node_index: NodeIndex::new(vec![]),
+            engine_factory: EngineFactory { engine: Engines::Default },
             result: None,
             marker: PhantomData,
         }
     }
 
+    pub fn root(mut self, mut root: NodeHandle) -> BT<Ready> {
+        let handles = root.take_handles();
+        self.node_index = NodeIndex::new(handles);
+        self.root = Some(root);
+        self.into_state::<Ready>()
+    }
+}
+
+impl<T: NotDone> BT<T> {
     pub fn name(mut self, name: impl Into<String>) -> Self {
         self.name = name.into();
         self
     }
 
-    pub fn set_executor(&mut self, engine: Engines) {
-        self.executor_factory.set(engine);
+    pub fn set_engine(&mut self, engine: Engines) {
+        self.engine_factory.set(engine);
     }
 }
 
 impl BT<Ready> {
-    pub async fn execute(mut self) -> BT<Done> {
-        let mut exec = self.executor_factory.create(&self);
-        self.result = Some(exec.execute().await);
-
+    pub async fn run(mut self) -> BT<Done> {
+        let mut engine = self.engine_factory.create(&self);
+        self.result = Some(engine.run().await);
         self.into_state::<Done>()
     }
 }
@@ -81,10 +88,12 @@ impl BT<Done> {
 }
 
 pub trait BuildState {}
+pub trait NotDone {}
 pub struct Init;
 pub struct Ready;
 pub struct Done;
 
-impl BuildState for Init {}
-impl BuildState for Ready {}
 impl BuildState for Done {}
+impl NotDone for Init {}
+impl NotDone for Ready {}
+impl<T: NotDone> BuildState for T {}

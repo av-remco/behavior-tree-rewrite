@@ -3,7 +3,7 @@ use crate::{BT, bt::Ready, execution::flat_map_engine::FlatMapEngine};
 // TODO: Not how Factory pattern works, but good enough for one executor
 
 pub(crate) trait Engine {
-    async fn execute(&mut self) -> bool;
+    async fn run(&mut self) -> bool;
 }
 
 pub enum Engines {
