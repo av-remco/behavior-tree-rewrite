@@ -5,15 +5,18 @@ use futures::{Future, FutureExt};
 use log::{trace, warn};
 
 use crate::bt::Ready;
-use crate::execution::executor_factory::Engine;
-use crate::{BT, conversion::converter::{BehaviorTreeMap, convert_bt}, execution::traversal::search_start, nodes_bin::{node::NodeType, process_handle::ProcessHandle, node_message::{ChildMessage, FutResult, ParentMessage}, node_status::Status}};
+use crate::execution::engine_factory::Engine;
+use crate::execution::process_comms::ProcessComms;
+use crate::nodes_bin::process_handle::ProcessHandle;
+use crate::{BT, conversion::converter::{BehaviorTreeMap, convert_bt}, execution::traversal::search_start, nodes_bin::{node::Node, node_message::{ChildMessage, FutResult, ParentMessage}, node_status::Status}};
 
 pub type FutureVec<'a> = Vec<Pin<Box<dyn Future<Output = FutResult> + Send + 'a>>>;
 
 pub(crate) struct FlatMapEngine {
-    current_node: ProcessHandle,
+    current_node: Node,
     map: BehaviorTreeMap,
-    active_conditions: Vec<ProcessHandle>,
+    active_conditions: Vec<Node>,
+    comms: ProcessComms,
 }
 
 impl FlatMapEngine {
@@ -24,11 +27,16 @@ impl FlatMapEngine {
             .expect("No initial node found for behavior tree");
 
         let map = convert_bt(tree);
+        // TODO remove this Option type
+        let Some(comms) = tree.map.clone() else {
+            panic!("No mapping from tree structure to processes found")
+        };
 
         Self {
             current_node,
             map,
             active_conditions: vec![],
+            comms: ProcessComms::new(comms),
         }
     }
 
@@ -40,7 +48,7 @@ impl FlatMapEngine {
         };
 
         // If the previous node was a condition, keep monitoring it
-        if let NodeType::Condition = self.current_node.element {
+        if let Node::Condition(_) = self.current_node {
             self.active_conditions.push(self.current_node.clone());
         }
 
@@ -48,8 +56,12 @@ impl FlatMapEngine {
         None
     }
 
-    async fn handle_condition_trigger(&mut self, node: ProcessHandle, status: bool, index: usize) -> Option<bool> {
-        self.current_node.stop().await;
+    async fn handle_condition_trigger(&mut self, node: Node, status: bool, index: usize) -> Option<bool> {
+        let Some(id) = node.get_id() else {
+            panic!("Unexpected node type");
+        };
+        // TODO: Handle Result here
+        let _ = self.comms.send(id, ChildMessage::Stop).await;
         self.stop_conditions_after_idx(index).await;
 
         let Some(next_node) = self.lookup_next(node, status) else {
@@ -62,19 +74,25 @@ impl FlatMapEngine {
         None
     }
 
-    fn lookup_next(&self, node: ProcessHandle, status: bool) -> Option<ProcessHandle>{
+    fn lookup_next(&self, node: Node, status: bool) -> Option<Node>{
         self.map.get(&(node, status.into())).cloned().flatten()
     }
 
     async fn stop_conditions_after_idx(&mut self, idx: usize) {
-        for mut condition in self.active_conditions.split_off(idx + 1) {
-            condition.stop().await
+        for condition in self.active_conditions.split_off(idx + 1) {
+            let Some(id) = condition.get_id() else {
+                panic!("Unexpected node type");
+            };
+            let _ = self.comms.send(id, ChildMessage::Stop).await;
         }
     }
 
-    fn start_current_node(&self) {
-        if let Err(err) = self.current_node.send(ChildMessage::Start) {
-            panic!("{:?} {:?} gave error {:?}", self.current_node.element, self.current_node.name.clone(), err);
+    async fn start_current_node(&mut self) {
+        let Some(id) = self.current_node.get_id() else {
+            panic!("Unexpected node type");
+        };
+        if let Err(err) = self.comms.send(id, ChildMessage::Start).await {
+            panic!("{:?} gave error {:?}", self.current_node, err);
         }
     }
 
@@ -82,8 +100,12 @@ impl FlatMapEngine {
         let mut futures = vec![];
 
         // Futures for all active conditions
-        for handle in self.active_conditions.clone().iter_mut() {
-            futures.push(Self::run_condition(handle.clone()).boxed());
+        for cond in self.active_conditions.clone().iter_mut() {
+            let Some(id) = cond.get_id() else {
+                panic!("Unexpected node type");
+            };
+            let handle = self.comms.get_handle(id).expect("No process found!");
+            futures.push(Self::run_condition(cond.clone(), handle.clone()).boxed());
         }
 
         // Future for current action
@@ -91,9 +113,9 @@ impl FlatMapEngine {
         futures
     }
 
-    async fn run_condition(mut node: ProcessHandle) -> FutResult{
+    async fn run_condition(node: Node, mut handle: ProcessHandle) -> FutResult{
         loop {
-            match node.listen().await {
+            match handle.listen().await {
                 Ok(msg) => {
                     match msg {
                         ParentMessage::Status(Status::Success) => return FutResult::Condition(node.clone(), true),
@@ -102,29 +124,34 @@ impl FlatMapEngine {
                     }
                 },
                 Err(err) => {
-                    warn!("{:?} {:?} has error {:?}", node.element, node.name, err)
+                    warn!("{:?} has error {:?}", node, err)
                 },
             }
         }
     }
 
     async fn run_current_node(&mut self) -> FutResult {
+        let node = self.current_node.clone();
+        let Some(id) = node.get_id() else {
+            panic!("Unexpected node type");
+        };
+        let handle = self.comms.get_handle(id).expect("No process found!");
         loop {
-            match self.current_node.listen().await {
+            match handle.listen().await {
                 Ok(msg) => {
-                    if let Some(res) = self.process_parent_message(msg) {
+                    if let Some(res) = Self::process_parent_message(node.clone(), msg) {
                         return FutResult::CurrentNode(res)
                     }
                 },
                 Err(err) => {
-                    warn!("{:?} {:?} has error {:?}", self.current_node.element, self.current_node.name.clone(), err);
+                    warn!("{:?} has error {:?}", self.current_node, err);
                     return FutResult::CurrentNode(false);
                 },
             }
         }
     }
 
-    fn process_parent_message(&self, msg: ParentMessage) -> Option<bool>{
+    fn process_parent_message(node: Node, msg: ParentMessage) -> Option<bool>{
         match msg {
             ParentMessage::Status(status) => match status {
                     Status::Success => {
@@ -136,21 +163,27 @@ impl FlatMapEngine {
                     _ => None
                 },
             ParentMessage::Poison(err) => {
-                warn!("{:?} {:?} is poisoned with error: {:?}", self.current_node.element, self.current_node.name.clone(), err);
+                warn!("{:?} is poisoned with error: {:?}", node, err);
                 Some(false)
             },
             ParentMessage::Killed => {
-                warn!("{:?} {:?} has been killed", self.current_node.element, self.current_node.name.clone());
+                warn!("{:?} has been killed", node);
                 Some(false)
             },
         }
     }
 
     async fn kill_running(&mut self) {
-        self.current_node.kill().await;
+        let Some(id) = self.current_node.get_id() else {
+            panic!("Unexpected node type");
+        };
+        let _ = self.comms.send(id, ChildMessage::Kill).await;
 
-        for mut con in self.active_conditions.clone() {
-            con.kill().await;
+        for con in self.active_conditions.clone() {
+            let Some(id) = con.get_id() else {
+                panic!("Unexpected node type");
+            };
+            let _ = self.comms.send(id, ChildMessage::Kill).await;
         }
     }
 }
@@ -158,7 +191,7 @@ impl FlatMapEngine {
 impl Engine for FlatMapEngine {
     async fn run(&mut self) -> bool {
         loop {
-            self.start_current_node();
+            self.start_current_node().await;
 
             let futures: FutureVec = self.build_listener_futures();
             let (result, index, _) = select_all(futures).await;

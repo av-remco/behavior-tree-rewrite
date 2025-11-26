@@ -11,144 +11,171 @@ mod tests {
     use crate::execution::traversal::{search_next, search_start};
     use crate::logging::load_logger;
     use crate::nodes::action::mocking::MockAction;
+    use crate::nodes_bin::node::Node;
     use crate::nodes_bin::process_handle::ProcessHandle;
     use crate::nodes_bin::node_status::Status;
-    use crate::{BT, Condition, Failure, Fallback, Sequence, Success, Wait};
+    use crate::{BT, Condition, Failure, Success, Wait};
     use logtest::Logger;
 
     #[tokio::test]
     async fn test_convert_simple_action_root() {
-        let action = MockAction::new(1);
-        let bt = BT::new().root(action.clone()).name("test_tree");
-        let mut bt: BT<Ready> = bt.test_into_state();
+        let mut map = HashMap::new();
+        let action = Success::new();
+        let id = "a1".to_string();
+        map.insert(id.clone(), action);
+        let root = Node::Action(id);
 
+        let bt = BT::new()
+            .map(map)
+            .root(root.clone())
+            .name("test_tree");
+
+        let mut bt: BT<Ready> = bt.test_into_state();
         let map = convert_bt(&mut bt);
 
-        // Only one node in the map
         assert_eq!(map.len(), 2);
 
-        assert_eq!(
-            map.get(&(action.clone(), Status::Success)),
-            Some(&None)
-        );
-
-        assert_eq!(
-            map.get(&(action.clone(), Status::Failure)),
-            Some(&None)
-        );
+        assert_eq!(map.get(&(root.clone(), Status::Success)), Some(&None));
+        assert_eq!(map.get(&(root, Status::Failure)), Some(&None));
     }
 
     #[tokio::test]
     async fn test_condition_then_action() {
+        let mut map = HashMap::new();
+        let action = Success::new();
         let cond = Condition::new("cond1", Handle::new(1), |x| x > 0);
-        let action = MockAction::new(1);
+        let id1 = "c1".to_string();
+        let id2 = "a1".to_string();
+        map.insert(id1.clone(), action);
+        map.insert(id2.clone(), cond);
 
-        let seq = Sequence::new(vec![cond.clone(), action.clone()]);
+        let root = Node::Sequence(vec![
+            Node::Condition(id1.clone()),
+            Node::Action(id2.clone()),
+        ]);
 
-        let bt = BT::new().root(seq).name("test_tree");
+        let bt = BT::new()
+            .map(map)
+            .root(root)
+            .name("test_tree");
+
         let mut bt: BT<Ready> = bt.test_into_state();
-
         let map = convert_bt(&mut bt);
-        println!("{:?}", map);
 
-        // CONDITION → SUCCESS → ACTION
+        // cond SUCCESS → action
         assert_eq!(
-            map.get(&(cond.clone(), Status::Success)),
-            Some(&Some(action.clone()))
+            map.get(&(Node::Condition(id1.clone()), Status::Success)),
+            Some(&Some(Node::Action(id2.clone())))
         );
 
-        // CONDITION → FAILURE → root
+        // cond FAILURE → None (end)
         assert_eq!(
-            map.get(&(cond.clone(), Status::Failure)),
+            map.get(&(Node::Condition(id1.clone()), Status::Failure)),
             Some(&None)
         );
 
-        // ACTION always ends → None
-        assert_eq!(
-            map.get(&(action.clone(), Status::Success)),
-            Some(&None)
-        );
-
-        assert_eq!(
-            map.get(&(action.clone(), Status::Failure)),
-            Some(&None)
-        );
+        // action → end
+        assert_eq!(map[&(Node::Action(id2.clone()), Status::Success)], None);
+        assert_eq!(map[&(Node::Action(id2.clone()), Status::Failure)], None);
     }
+
 
     // Fallback
     // ├─ cond → action1
     // └─ action2
     #[tokio::test]
     async fn test_fallback_cond_then_action_and_action2() {
+        let mut map = HashMap::new();
         let cond = Condition::new("cond1", Handle::new(1), |x| x > 0);
         let a1 = MockAction::new(1);
         let a2 = MockAction::new(2);
-
-        let fb = Fallback::new(vec![
-            Sequence::new(vec![cond.clone(), a1.clone()]),
-            a2.clone()
+        let id1 = "c1".to_string();
+        let id2 = "a1".to_string();
+        let id3 = "a2".to_string();
+        map.insert(id1.clone(), cond);
+        map.insert(id2.clone(), a1);
+        map.insert(id3.clone(), a2);
+        let seq = Node::Sequence(vec![
+            Node::Condition(id1.clone()),
+            Node::Action(id2.clone()),
         ]);
-
-        let bt = BT::new().root(fb).name("test_tree");
+        let root = Node::Fallback(vec![
+            seq,
+            Node::Action(id3.clone()),
+        ]);
+        let bt = BT::new()
+            .map(map)
+            .root(root)
+            .name("test_tree");
         let mut bt: BT<Ready> = bt.test_into_state();
-
         let map = convert_bt(&mut bt);
-
         // Fallback logic:
-        // Cond → Success → A1
+        // Cond SUCCESS → A1
         assert_eq!(
-            map.get(&(cond.clone(), Status::Success)),
-            Some(&Some(a1.clone()))
+            map.get(&(Node::Condition(id1.clone()), Status::Success)),
+            Some(&Some(Node::Action(id2.clone())))
         );
-
-        // Cond → Failure → A2
+        // Cond FAILURE → A2
         assert_eq!(
-            map.get(&(cond.clone(), Status::Failure)),
-            Some(&Some(a2.clone()))
+            map.get(&(Node::Condition(id1.clone()), Status::Failure)),
+            Some(&Some(Node::Action(id3.clone())))
         );
-
-        // A1 and A2 end the tree
-        assert_eq!(map[&(a1.clone(), Status::Success)], None);
-        assert_eq!(map[&(a1.clone(), Status::Failure)], Some(a2.clone()));
-
-        assert_eq!(map[&(a2.clone(), Status::Success)], None);
-        assert_eq!(map[&(a2.clone(), Status::Failure)], None);
+        // A1 SUCCESS → end
+        assert_eq!(map[&(Node::Action(id2.clone()), Status::Success)], None);
+        // A1 FAILURE → A2
+        assert_eq!(
+            map.get(&(Node::Action(id2.clone()), Status::Failure)),
+            Some(&Some(Node::Action(id3.clone())))
+        );
+        // A2 SUCCESS → end
+        assert_eq!(map[&(Node::Action(id3.clone()), Status::Success)], None);
+        // A2 FAILURE → end
+        assert_eq!(map[&(Node::Action(id3.clone()), Status::Failure)], None);
     }
+
 
     // cond1 → cond2 → action
     #[tokio::test]
     async fn test_long_sequence_chain() {
+        let mut map = HashMap::new();
         let cond1 = Condition::new("c1", Handle::new(1), |x| x > 0);
         let cond2 = Condition::new("c2", Handle::new(2), |x| x > 5);
         let act = MockAction::new(1);
-
-        let seq = Sequence::new(vec![cond1.clone(), cond2.clone(), act.clone()]);
-
-        let bt = BT::new().root(seq).name("test_tree");
+        let id1 = "c1".to_string();
+        let id2 = "c2".to_string();
+        let id3 = "a1".to_string();
+        map.insert(id1.clone(), cond1);
+        map.insert(id2.clone(), cond2);
+        map.insert(id3.clone(), act);
+        let root = Node::Sequence(vec![
+            Node::Condition(id1.clone()),
+            Node::Condition(id2.clone()),
+            Node::Action(id3.clone()),
+        ]);
+        let bt = BT::new()
+            .map(map)
+            .root(root)
+            .name("test_tree");
         let mut bt: BT<Ready> = bt.test_into_state();
-
         let map = convert_bt(&mut bt);
-
         // cond1 SUCCESS → cond2
         assert_eq!(
-            map.get(&(cond1.clone(), Status::Success)),
-            Some(&Some(cond2.clone()))
+            map.get(&(Node::Condition(id1.clone()), Status::Success)),
+            Some(&Some(Node::Condition(id2.clone())))
         );
-
         // cond2 SUCCESS → action
         assert_eq!(
-            map.get(&(cond2.clone(), Status::Success)),
-            Some(&Some(act.clone()))
+            map.get(&(Node::Condition(id2.clone()), Status::Success)),
+            Some(&Some(Node::Action(id3.clone())))
         );
-
         // action SUCCESS → None
-        assert_eq!(map[&(act.clone(), Status::Success)], None);
-
+        assert_eq!(map[&(Node::Action(id3.clone()), Status::Success)], None);
         // Any failure → root
-        assert_eq!(map[&(cond1.clone(), Status::Failure)], None);
-        assert_eq!(map[&(cond2.clone(), Status::Failure)], None);
-        assert_eq!(map[&(act.clone(), Status::Failure)], None);
+        assert_eq!(map[&(Node::Condition(id1.clone()), Status::Failure)], None);
+        assert_eq!(map[&(Node::Condition(id2.clone()), Status::Failure)], None);
+        assert_eq!(map[&(Node::Action(id3.clone()), Status::Failure)], None);
     }
+
 
     // Fallback
     // ├─ Sequence(cond1 → action1)
@@ -157,49 +184,75 @@ mod tests {
 
     #[tokio::test]
     async fn test_multiple_paths_and_selectors() {
+        let mut map = HashMap::new();
         let cond1 = Condition::new("c1", Handle::new(1), |x| x > 0);
-        let a1    = MockAction::new(1);
-
+        let a1 = MockAction::new(1);
         let cond2 = Condition::new("c2", Handle::new(2), |x| x > 10);
-        let a2    = MockAction::new(2);
-
+        let a2 = MockAction::new(2);
         let a3 = MockAction::new(3);
-
-        let fb = Fallback::new(vec![
-            Sequence::new(vec![cond1.clone(), a1.clone()]),
-            Sequence::new(vec![cond2.clone(), a2.clone()]),
-            a3.clone(),
+        let id1 = "c1".to_string();
+        let id2 = "a1".to_string();
+        let id3 = "c2".to_string();
+        let id4 = "a2".to_string();
+        let id5 = "a3".to_string();
+        map.insert(id1.clone(), cond1);
+        map.insert(id2.clone(), a1);
+        map.insert(id3.clone(), cond2);
+        map.insert(id4.clone(), a2);
+        map.insert(id5.clone(), a3);
+        let root = Node::Fallback(vec![
+            Node::Sequence(vec![
+                Node::Condition(id1.clone()),
+                Node::Action(id2.clone()),
+            ]),
+            Node::Sequence(vec![
+                Node::Condition(id3.clone()),
+                Node::Action(id4.clone()),
+            ]),
+            Node::Action(id5.clone()),
         ]);
-
-        let bt = BT::new().root(fb).name("test_tree");
+        let bt = BT::new()
+            .map(map)
+            .root(root)
+            .name("test_tree");
         let mut bt: BT<Ready> = bt.test_into_state();
-
         let map = convert_bt(&mut bt);
-
         // cond1 SUCCESS → a1
-        assert_eq!(map[&(cond1.clone(), Status::Success)], Some(a1.clone()));
-
+        assert_eq!(
+            map.get(&(Node::Condition(id1.clone()), Status::Success)),
+            Some(&Some(Node::Action(id2.clone())))
+        );
         // cond1 FAILURE → cond2
-        assert_eq!(map[&(cond1.clone(), Status::Failure)], Some(cond2.clone()));
-        
+        assert_eq!(
+            map.get(&(Node::Condition(id1.clone()), Status::Failure)),
+            Some(&Some(Node::Condition(id3.clone())))
+        );
         // a1 FAILURE → cond2
-        assert_eq!(map[&(a1.clone(), Status::Failure)], Some(cond2.clone()));
-
+        assert_eq!(
+            map.get(&(Node::Action(id2.clone()), Status::Failure)),
+            Some(&Some(Node::Condition(id3.clone())))
+        );
         // cond2 SUCCESS → a2
-        assert_eq!(map[&(cond2.clone(), Status::Success)], Some(a2.clone()));
-
+        assert_eq!(
+            map.get(&(Node::Condition(id3.clone()), Status::Success)),
+            Some(&Some(Node::Action(id4.clone())))
+        );
         // cond2 FAILURE → a3
-        assert_eq!(map[&(cond2.clone(), Status::Failure)], Some(a3.clone()));
-
+        assert_eq!(
+            map.get(&(Node::Condition(id3.clone()), Status::Failure)),
+            Some(&Some(Node::Action(id5.clone())))
+        );
         // a2 FAILURE → a3
-        assert_eq!(map[&(a2.clone(), Status::Failure)], Some(a3.clone()));
-
-        // a3 FAILURE -> None
-        assert_eq!(map[&(a3.clone(), Status::Failure)], None);
-
+        assert_eq!(
+            map.get(&(Node::Action(id4.clone()), Status::Failure)),
+            Some(&Some(Node::Action(id5.clone())))
+        );
+        // a3 FAILURE → None
+        assert_eq!(map[&(Node::Action(id5.clone()), Status::Failure)], None);
         // All actions end cycle
-        for a in [&a1, &a2, &a3] {
-            assert_eq!(map[&(a.clone(), Status::Success)], None);
+        for id in [&id2, &id4, &id5] {
+            assert_eq!(map[&(Node::Action(id.clone()), Status::Success)], None);
         }
     }
+
 }

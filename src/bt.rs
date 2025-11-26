@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use crate::{execution::executor_factory::{Engine, EngineFactory, Engines}, nodes_bin::{node::Node, node_map::NodeHandleMap}};
+use crate::{execution::engine_factory::{Engine, EngineFactory, Engines}, nodes_bin::{node::Node, node_map::NodeHandleMap}};
 
 pub(crate) const CHANNEL_SIZE: usize = 20;
 

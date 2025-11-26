@@ -1,9 +1,9 @@
 use std::collections::{HashMap, HashSet, VecDeque};
 
-use crate::{BT, bt::Ready, execution::traversal::{search_next, search_start}, nodes_bin::{process_handle::ProcessHandle, node_status::Status}};
+use crate::{BT, bt::Ready, execution::traversal::{search_next, search_start}, nodes_bin::{node::Node, node_status::Status}};
 
 
-pub(crate) type BehaviorTreeMap = HashMap<(ProcessHandle, Status), Option<ProcessHandle>>;
+pub(crate) type BehaviorTreeMap = HashMap<(Node, Status), Option<Node>>;
 
 pub(crate) fn convert_bt(bt: &BT<Ready>) -> BehaviorTreeMap {
     let mut map = HashMap::new();
@@ -20,7 +20,7 @@ pub(crate) fn convert_bt(bt: &BT<Ready>) -> BehaviorTreeMap {
         let Some(current_node) = current.last() else { continue };
 
         for &status in &[Status::Success, Status::Failure] {
-            let next_vec = search_next(&bt, current.clone(), &status);
+            let next_vec = search_next(current.clone(), &status);
             let next_node = next_vec.last().cloned();
 
             // Insert into map
