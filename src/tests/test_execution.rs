@@ -1,14 +1,9 @@
 #[cfg(test)]
 #[allow(unused_imports)]
 mod tests {
-
-    // * Tests for bt.test_into_state().execute()
-
     use std::{collections::HashMap, time::Duration};
-
     use actify::Handle;
     use tokio::time::sleep;
-
     use crate::{BT, Condition, Failure, Success, Wait, bt::Ready, nodes::action::mocking::MockAction, nodes_bin::{node::Node, node_status::Status}};
 
     #[tokio::test]
@@ -19,7 +14,7 @@ mod tests {
         map.insert(id.clone(), action);
 
         let root = Node::Action(id);
-        let bt = BT::new().map(map).root(root).name("test_tree");
+        let bt = BT::new().test_insert_map(map).test_root(root).name("test_tree");
 
         let result = bt.test_into_state().run().await;
         assert_eq!(result.result(), true);
@@ -33,7 +28,7 @@ mod tests {
         map.insert(id.clone(), action);
 
         let root = Node::Action(id);
-        let bt = BT::new().map(map).root(root).name("test_tree");
+        let bt = BT::new().test_insert_map(map).test_root(root).name("test_tree");
 
         let result = bt.test_into_state().run().await;
         assert_eq!(result.result(), false);
@@ -47,7 +42,7 @@ mod tests {
         map.insert(id.clone(), cond);
 
         let root = Node::Condition(id);
-        let bt = BT::new().map(map).root(root).name("test_tree");
+        let bt = BT::new().test_insert_map(map).test_root(root).name("test_tree");
 
         let bt = bt.test_into_state().run().await;
         assert_eq!(bt.result(), true);
@@ -61,7 +56,7 @@ mod tests {
         map.insert(id.clone(), cond);
 
         let root = Node::Condition(id);
-        let bt = BT::new().map(map).root(root).name("test_tree");
+        let bt = BT::new().test_insert_map(map).test_root(root).name("test_tree");
 
         let result = bt.test_into_state().run().await;
         assert_eq!(result.result(), false);
@@ -79,7 +74,7 @@ mod tests {
         map.insert(id2.clone(), a2);
 
         let seq = Node::Sequence(vec![Node::Action(id1), Node::Action(id2)]);
-        let bt = BT::new().map(map).root(seq).name("test_tree");
+        let bt = BT::new().test_insert_map(map).test_root(seq).name("test_tree");
 
         let result = bt.test_into_state().run().await;
         assert_eq!(result.result(), true);
@@ -97,7 +92,7 @@ mod tests {
         map.insert(id2.clone(), a2);
 
         let seq = Node::Sequence(vec![Node::Action(id1), Node::Action(id2)]);
-        let bt = BT::new().map(map).root(seq).name("test_tree");
+        let bt = BT::new().test_insert_map(map).test_root(seq).name("test_tree");
 
         let result = bt.test_into_state().run().await;
         assert_eq!(result.result(), false);
@@ -115,7 +110,7 @@ mod tests {
         map.insert(id2.clone(), f1);
 
         let fb = Node::Fallback(vec![Node::Action(id1), Node::Action(id2)]);
-        let bt = BT::new().map(map).root(fb).name("test_tree");
+        let bt = BT::new().test_insert_map(map).test_root(fb).name("test_tree");
 
         let result = bt.test_into_state().run().await;
         assert_eq!(result.result(), true);
@@ -133,7 +128,7 @@ mod tests {
         map.insert(id2.clone(), s1);
 
         let fb = Node::Fallback(vec![Node::Action(id1), Node::Action(id2)]);
-        let bt = BT::new().map(map).root(fb).name("test_tree");
+        let bt = BT::new().test_insert_map(map).test_root(fb).name("test_tree");
 
         let result = bt.test_into_state().run().await;
         assert_eq!(result.result(), true);
@@ -151,7 +146,7 @@ mod tests {
         map.insert(id2.clone(), f2);
 
         let fb = Node::Fallback(vec![Node::Action(id1), Node::Action(id2)]);
-        let bt = BT::new().map(map).root(fb).name("test_tree");
+        let bt = BT::new().test_insert_map(map).test_root(fb).name("test_tree");
 
         let result = bt.test_into_state().run().await;
         assert_eq!(result.result(), false);
@@ -172,7 +167,7 @@ mod tests {
         let fb = Node::Fallback(vec![Node::Action(idf1), Node::Action(ids1)]);
         let seq = Node::Sequence(vec![Node::Condition(idc), fb]);
 
-        let bt = BT::new().map(map).root(seq).name("test_tree");
+        let bt = BT::new().test_insert_map(map).test_root(seq).name("test_tree");
 
         let result = bt.test_into_state().run().await;
         assert_eq!(result.result(), false);
@@ -186,7 +181,7 @@ mod tests {
         map.insert(id.clone(), Wait::new(Duration::from_millis(50)));
 
         let root = Node::Action(id);
-        let bt = BT::new().map(map).root(root).name("test_tree");
+        let bt = BT::new().test_insert_map(map).test_root(root).name("test_tree");
 
         let result = bt.test_into_state().run().await;
         assert_eq!(result.result(), true);
@@ -204,7 +199,7 @@ mod tests {
         map.insert(ida.clone(), MockAction::new(1));
 
         let seq = Node::Sequence(vec![Node::Condition(idc), Node::Action(ida)]);
-        let bt = BT::new().map(map).root(seq).name("test_tree");
+        let bt = BT::new().test_insert_map(map).test_root(seq).name("test_tree");
 
         let (bt, _) = tokio::join!(
             bt.test_into_state().run(),
@@ -235,7 +230,7 @@ mod tests {
             Node::Action(id2),
         ]);
 
-        let bt = BT::new().map(map).root(seq).name("test_tree");
+        let bt = BT::new().test_insert_map(map).test_root(seq).name("test_tree");
 
         let bt = bt.test_into_state().run().await;
         assert_eq!(bt.result(), false);
@@ -262,7 +257,7 @@ mod tests {
             Node::Action(ida),
         ]);
 
-        let bt = BT::new().map(map).root(seq).name("test_tree");
+        let bt = BT::new().test_insert_map(map).test_root(seq).name("test_tree");
 
         let (bt, _, _) = tokio::join!(
             bt.test_into_state().run(),
@@ -300,7 +295,7 @@ mod tests {
             Node::Action(ida),
         ]);
 
-        let bt = BT::new().map(map).root(seq).name("test_tree");
+        let bt = BT::new().test_insert_map(map).test_root(seq).name("test_tree");
 
         let (bt, _) = tokio::join!(
             bt.test_into_state().run(),
@@ -338,7 +333,7 @@ mod tests {
             Node::Action(ida),
         ]);
 
-        let bt = BT::new().map(map).root(seq).name("test_tree");
+        let bt = BT::new().test_insert_map(map).test_root(seq).name("test_tree");
 
         let (bt, _) = tokio::join!(
             bt.test_into_state().run(),
@@ -378,7 +373,7 @@ mod tests {
             Node::Action(ida),
         ]);
 
-        let bt = BT::new().map(map).root(seq).name("test_tree");
+        let bt = BT::new().test_insert_map(map).test_root(seq).name("test_tree");
 
         let (bt, _) = tokio::join!(
             bt.test_into_state().run(),

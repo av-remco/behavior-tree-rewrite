@@ -27,16 +27,12 @@ impl FlatMapEngine {
             .expect("No initial node found for behavior tree");
 
         let map = convert_bt(tree);
-        // TODO remove this Option type
-        let Some(comms) = tree.map.clone() else {
-            panic!("No mapping from tree structure to processes found")
-        };
 
         Self {
             current_node,
             map,
             active_conditions: vec![],
-            comms: ProcessComms::new(comms),
+            comms: ProcessComms::new(tree.map.clone()),
         }
     }
 

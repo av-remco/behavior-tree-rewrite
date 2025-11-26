@@ -26,8 +26,8 @@ mod tests {
         let root = Node::Action(id);
 
         let bt = BT::new()
-            .map(map)
-            .root(root.clone())
+            .test_insert_map(map)
+            .test_root(root.clone())
             .name("test_tree");
 
         let mut bt: BT<Ready> = bt.test_into_state();
@@ -55,8 +55,8 @@ mod tests {
         ]);
 
         let bt = BT::new()
-            .map(map)
-            .root(root)
+            .test_insert_map(map)
+            .test_root(root)
             .name("test_tree");
 
         let mut bt: BT<Ready> = bt.test_into_state();
@@ -104,8 +104,8 @@ mod tests {
             Node::Action(id3.clone()),
         ]);
         let bt = BT::new()
-            .map(map)
-            .root(root)
+            .test_insert_map(map)
+            .test_root(root)
             .name("test_tree");
         let mut bt: BT<Ready> = bt.test_into_state();
         let map = convert_bt(&mut bt);
@@ -153,8 +153,8 @@ mod tests {
             Node::Action(id3.clone()),
         ]);
         let bt = BT::new()
-            .map(map)
-            .root(root)
+            .test_insert_map(map)
+            .test_root(root)
             .name("test_tree");
         let mut bt: BT<Ready> = bt.test_into_state();
         let map = convert_bt(&mut bt);
@@ -212,8 +212,8 @@ mod tests {
             Node::Action(id5.clone()),
         ]);
         let bt = BT::new()
-            .map(map)
-            .root(root)
+            .test_insert_map(map)
+            .test_root(root)
             .name("test_tree");
         let mut bt: BT<Ready> = bt.test_into_state();
         let map = convert_bt(&mut bt);

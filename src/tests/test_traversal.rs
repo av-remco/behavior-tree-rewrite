@@ -27,7 +27,7 @@ mod tests {
         map.insert(id1.clone(), action1);
 
         let root = Node::Action(id1);
-        let bt = BT::new().map(map).root(root.clone()).name("test_tree");
+        let bt = BT::new().test_insert_map(map).test_root(root.clone()).name("test_tree");
 
         let trace = search_start(&bt);
 
@@ -46,7 +46,7 @@ mod tests {
         map.insert(id1.clone(), action1);
 
         let root = Node::Action(id1.clone());
-        let bt = BT::new().map(map).root(root.clone()).name("test_tree");
+        let bt = BT::new().test_insert_map(map).test_root(root.clone()).name("test_tree");
 
         let trace = search_start(&bt);
 
@@ -63,7 +63,7 @@ mod tests {
         map.insert(id1.clone(), cond);
 
         let root = Node::Condition(id1.clone());
-        let bt = BT::new().map(map).root(root.clone()).name("test_tree");
+        let bt = BT::new().test_insert_map(map).test_root(root.clone()).name("test_tree");
 
         let trace = search_start(&bt);
 
@@ -88,7 +88,7 @@ mod tests {
             Node::Action(id2.clone()),
         ]);
 
-        let bt = BT::new().map(map).root(root.clone()).name("test_tree");
+        let bt = BT::new().test_insert_map(map).test_root(root.clone()).name("test_tree");
 
         let trace = search_start(&bt);
 
@@ -113,7 +113,7 @@ mod tests {
             Node::Action("a2".into()),
         ]);
 
-        let bt = BT::new().map(map).root(root.clone()).name("test_tree");
+        let bt = BT::new().test_insert_map(map).test_root(root.clone()).name("test_tree");
 
         let trace = search_start(&bt);
 
@@ -138,7 +138,7 @@ mod tests {
             Node::Action("succ".into()),
         ]);
 
-        let bt = BT::new().map(map).root(root.clone()).name("test_tree");
+        let bt = BT::new().test_insert_map(map).test_root(root.clone()).name("test_tree");
 
         let trace = search_start(&bt);
 
@@ -163,7 +163,7 @@ mod tests {
             Node::Action("a2".into()),
         ]);
 
-        let bt = BT::new().map(map).root(root.clone()).name("test_tree");
+        let bt = BT::new().test_insert_map(map).test_root(root.clone()).name("test_tree");
 
         let trace = search_start(&bt);
 
@@ -195,7 +195,7 @@ mod tests {
             fb.clone(),
         ]);
 
-        let bt = BT::new().map(map).root(root.clone()).name("test_tree");
+        let bt = BT::new().test_insert_map(map).test_root(root.clone()).name("test_tree");
 
         let trace = search_start(&bt);
 
@@ -227,7 +227,7 @@ mod tests {
             Node::Action("a2".into()),
         ]);
 
-        let bt = BT::new().map(map).root(root.clone()).name("test_tree");
+        let bt = BT::new().test_insert_map(map).test_root(root.clone()).name("test_tree");
 
         let trace = search_start(&bt);
 
@@ -258,7 +258,7 @@ mod tests {
             Node::Action("a2".into()),
         ]);
 
-        let bt = BT::new().map(map).root(root.clone()).name("test_tree");
+        let bt = BT::new().test_insert_map(map).test_root(root.clone()).name("test_tree");
 
         let start = search_start(&bt);
         assert_eq!(start, vec![
@@ -289,7 +289,7 @@ mod tests {
             Node::Action("a1".into()),
         ]);
 
-        let bt = BT::new().map(map).root(root.clone()).name("test_tree");
+        let bt = BT::new().test_insert_map(map).test_root(root.clone()).name("test_tree");
 
         let start = search_start(&bt);
         assert_eq!(start, vec![
@@ -317,7 +317,7 @@ mod tests {
             Node::Action("a1".into()),
         ]);
 
-        let bt = BT::new().map(map).root(root.clone()).name("test_tree");
+        let bt = BT::new().test_insert_map(map).test_root(root.clone()).name("test_tree");
 
         let start = search_start(&bt);
         assert_eq!(start, vec![
@@ -348,7 +348,7 @@ mod tests {
             Node::Action("a1".into()),
         ]);
 
-        let bt = BT::new().map(map).root(root.clone()).name("test_tree");
+        let bt = BT::new().test_insert_map(map).test_root(root.clone()).name("test_tree");
 
         let start = search_start(&bt);
         assert_eq!(start, vec![
@@ -383,7 +383,7 @@ mod tests {
             Node::Action("a2".into()),
         ]);
 
-        let bt = BT::new().map(map).root(root.clone()).name("test_tree");
+        let bt = BT::new().test_insert_map(map).test_root(root.clone()).name("test_tree");
 
         let start = search_start(&bt);
         assert_eq!(start, vec![
@@ -408,7 +408,7 @@ mod tests {
         map.insert("a1".into(), a1);
 
         let root = Node::Action("a1".into());
-        let bt = BT::new().map(map).root(root.clone()).name("test_tree");
+        let bt = BT::new().test_insert_map(map).test_root(root.clone()).name("test_tree");
 
         let fst_trace = search_start(&bt);
         let snd_trace = search_next(fst_trace.clone(), &Status::Success);

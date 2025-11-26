@@ -1,10 +1,7 @@
 use crate::{BT, bt::Ready, nodes_bin::{node::Node, node_status::Status}};
 
 pub(crate) fn search_start(tree: &BT<Ready>) -> Vec<Node> {
-    let Some(root) = tree.root.clone() else {
-        return vec![];
-    };
-    rec_search_down(root, vec![])
+    rec_search_down(tree.root.clone(), vec![])
 }
 
 fn rec_search_down(node: Node, mut trace: Vec<Node>) -> Vec<Node> {
