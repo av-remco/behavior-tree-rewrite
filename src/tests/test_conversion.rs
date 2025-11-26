@@ -11,7 +11,7 @@ mod tests {
     use crate::execution::traversal::{search_next, search_start};
     use crate::logging::load_logger;
     use crate::nodes::action::mocking::MockAction;
-    use crate::nodes_bin::node_handle::NodeHandle;
+    use crate::nodes_bin::process_handle::ProcessHandle;
     use crate::nodes_bin::node_status::Status;
     use crate::{BT, Condition, Failure, Fallback, Sequence, Success, Wait};
     use logtest::Logger;

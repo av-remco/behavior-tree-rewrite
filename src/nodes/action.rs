@@ -6,9 +6,9 @@ use tokio::sync::broadcast::{channel, Receiver, Sender};
 use tokio::time::{sleep, Duration};
 
 use crate::nodes_bin::{
-    node::{Node, NodeType},
+    node::{NodeProcess},
     node_error::NodeError,
-    node_handle::NodeHandle,
+    process_handle::ProcessHandle,
     node_message::{ChildMessage, ParentMessage},
     node_status::Status,
 };
@@ -23,7 +23,7 @@ pub trait Executor {
 pub struct Action {}
 
 impl Action {
-    pub fn new<T>(inner: T) -> NodeHandle
+    pub fn new<T>(inner: T) -> ProcessHandle
     where
         T: Executor + Send + Sync + 'static,
     {
@@ -45,7 +45,7 @@ impl<T> ActionProcess<T>
 where
     T: Executor + Send + Sync + 'static,
 {
-    pub fn new(inner: T) -> NodeHandle {
+    pub fn new(inner: T) -> ProcessHandle {
         let (parent_tx, parent_rx) = channel(CHANNEL_SIZE);
         let (child_tx, child_rx) = channel(CHANNEL_SIZE);
 
@@ -53,7 +53,7 @@ where
         let node = Self::_new(parent_tx.clone(), child_rx, inner);
         tokio::spawn(Self::serve(node));
 
-        NodeHandle::new(child_tx, parent_rx, NodeType::Action, name, vec![], vec![], vec![])
+        ProcessHandle::new(child_tx, parent_rx, name)
     }
 
     fn _new(
@@ -128,7 +128,7 @@ where
     }
 }
 
-impl<T: Executor + Send + Sync + 'static> Node for ActionProcess<T> {
+impl<T: Executor + Send + Sync + 'static> NodeProcess for ActionProcess<T> {
     async fn serve(self) {
         let poison_tx = self.tx.clone();
         let name = self.inner.get_name();
@@ -169,7 +169,7 @@ pub struct Wait {
 }
 
 impl Wait {
-    pub fn new(duration: Duration) -> NodeHandle {
+    pub fn new(duration: Duration) -> ProcessHandle {
         Action::new(Self {
             name: "Waiting".to_string(),
             duration,
@@ -193,7 +193,7 @@ pub struct Success {
 }
 
 impl Success {
-    pub fn new() -> NodeHandle {
+    pub fn new() -> ProcessHandle {
         Action::new(Self {
             name: "SUCCESS".to_string(),
         })
@@ -215,7 +215,7 @@ pub struct Failure {
 }
 
 impl Failure {
-    pub fn new() -> NodeHandle {
+    pub fn new() -> ProcessHandle {
         Action::new(Self {
             name: "FAILURE".to_string(),
         })
@@ -238,7 +238,7 @@ pub(crate) mod mocking {
     use anyhow::{anyhow, Result};
     use tokio::time::{sleep, Duration};
 
-    use crate::nodes_bin::node_handle::NodeHandle;
+    use crate::nodes_bin::process_handle::ProcessHandle;
 
     use super::{Action, Executor};
 
@@ -254,23 +254,23 @@ pub(crate) mod mocking {
 
     #[allow(dead_code)]
     impl MockAction {
-        pub fn new(id: i32) -> NodeHandle {
+        pub fn new(id: i32) -> ProcessHandle {
             Action::new(Self::_new(id, true, false, false, false))
         }
 
-        pub fn new_loop(id: i32) -> NodeHandle {
+        pub fn new_loop(id: i32) -> ProcessHandle {
             Action::new(Self::_new(id, true, false, false, true))
         }
 
-        pub fn new_failing(id: i32) -> NodeHandle {
+        pub fn new_failing(id: i32) -> ProcessHandle {
             Action::new(Self::_new(id, false, false, false, false))
         }
 
-        pub fn fail_on_twice(id: i32) -> NodeHandle {
+        pub fn fail_on_twice(id: i32) -> ProcessHandle {
             Action::new(Self::_new(id, true, false, true, false))
         }
 
-        pub fn new_error(id: i32) -> NodeHandle {
+        pub fn new_error(id: i32) -> ProcessHandle {
             Action::new(Self::_new(id, true, true, false, false))
         }
 

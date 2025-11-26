@@ -1,65 +1,55 @@
-use crate::{BT, bt::Ready, nodes_bin::{node::NodeType, node_handle::NodeHandle, node_status::Status}};
+use crate::{BT, bt::Ready, nodes_bin::{node::Node, node_status::Status}};
 
-pub(crate) fn search_start(tree: &BT<Ready>) -> Vec<NodeHandle> {
+pub(crate) fn search_start(tree: &BT<Ready>) -> Vec<Node> {
     let Some(root) = tree.root.clone() else {
         return vec![];
     };
-    rec_search_down(tree, root, vec![])
+    rec_search_down(root, vec![])
 }
 
-fn rec_search_down(tree: &BT<Ready>, node: NodeHandle, mut trace: Vec<NodeHandle>) -> Vec<NodeHandle> {
-    match node.element {
-        NodeType::Action | NodeType::Condition => {
+fn rec_search_down(node: Node, mut trace: Vec<Node>) -> Vec<Node> {
+    match &node {
+        Node::Action(_) | Node::Condition(_) => {
             trace.push(node.clone());
             trace
         },
-        NodeType::Fallback | NodeType::Sequence => {
-            let id = match node.children_ids.first() {
-                Some(id) => id,
-                None => panic!("Found a selector without a child"),
-            };
-            if let Some(child) = tree.node_index.get(id) {
+        Node::Fallback(children) | Node::Sequence(children) => {
+            if let Some(child) = children.first() {
                 trace.push(node.clone());
-                rec_search_down(tree, child, trace)
+                rec_search_down( child.clone(), trace)
             } else {
-                panic!("Did not find Handle for child");
+                panic!("Found a selector without a child");
             }
         }
     }
 }
 
-pub(crate) fn search_next(tree: &BT<Ready>, trace: Vec<NodeHandle>, result: &Status) -> Vec<NodeHandle> {
-    rec_search_up(tree, trace, result, None)
+pub(crate) fn search_next(trace: Vec<Node>, result: &Status) -> Vec<Node> {
+    rec_search_up(trace, result, None)
 }
 
-fn rec_search_up(tree: &BT<Ready>, mut trace: Vec<NodeHandle>, result: &Status, previous_node_id: Option<String>) -> Vec<NodeHandle> {
+fn rec_search_up(mut trace: Vec<Node>, result: &Status, previous_node: Option<Node>) -> Vec<Node> {
     // If trace = [], we have reached the root
     let Some(node) = trace.pop() else {
         return trace;
     };
 
-    match (node.element, result) {
+    match (&node, result) {
         // If previous node was not the last child, select next child and search down
-        (NodeType::Fallback, Status::Failure) | 
-        (NodeType::Sequence, Status::Success) => {
-            if let Some(child) = previous_node_id
-                .as_ref()
-                .and_then(|id| next_sibling(&node, id))
-                .and_then(|next_id| tree.node_index.get(&next_id))
-            {
-                trace.push(node.clone());
-                return rec_search_down(tree, child, trace);
+        (Node::Fallback(children), Status::Failure) | 
+        (Node::Sequence(children), Status::Success) => {
+            if let Some(previous_node) = previous_node {
+                if let Some(next_child) = children.iter()
+                    .position(|node| *node == previous_node)
+                    .and_then(|i| children.get(i + 1))
+                    .cloned()
+                {
+                    trace.push(node.clone());
+                    return rec_search_down(next_child, trace);
+                }
             }
         },
         (_,_) => ()
     }
-    
-    rec_search_up(tree, trace, result, Some(node.id))
-}
-
-fn next_sibling(node: &NodeHandle, child_id: &str) -> Option<String> {
-    node.children_ids.iter()
-        .position(|x| *x == child_id)
-        .and_then(|i| node.children_ids.get(i + 1))
-        .cloned()
+    rec_search_up(trace, result, Some(node))
 }

@@ -6,9 +6,9 @@ use std::marker::PhantomData;
 use tokio::sync::broadcast::{channel, Receiver, Sender};
 
 use crate::nodes_bin::{
-    node::{Node, NodeType},
+    node::{NodeProcess},
     node_error::NodeError,
-    node_handle::NodeHandle,
+    process_handle::ProcessHandle,
     node_message::{ChildMessage, ParentMessage},
     node_status::Status,
 };
@@ -62,7 +62,7 @@ where
 pub struct Condition {}
 
 impl Condition {
-    pub fn new_from<V, T>(evaluator: T, handle: Handle<V>) -> NodeHandle
+    pub fn new_from<V, T>(evaluator: T, handle: Handle<V>) -> ProcessHandle
     where
         T: Evaluator<V> + Clone + Send + Sync + 'static,
         V: Clone + Debug + Send + Sync + Clone + 'static,
@@ -70,7 +70,7 @@ impl Condition {
         ConditionProcess::new(handle, evaluator)
     }
 
-    pub fn new<V, S, F>(name: S, handle: Handle<V>, function: F) -> NodeHandle
+    pub fn new<V, S, F>(name: S, handle: Handle<V>, function: F) -> ProcessHandle
     where
         S: Into<String> + Clone,
         F: Fn(V) -> bool + Sync + Send + Clone + 'static,
@@ -98,7 +98,7 @@ where
     T: Evaluator<V> + Clone + Send + Sync + 'static,
     V: Clone + Debug + Send + Sync + Clone + 'static,
 {
-    pub fn new(handle: Handle<V>, evaluator: T) -> NodeHandle {
+    pub fn new(handle: Handle<V>, evaluator: T) -> ProcessHandle {
         let (parent_tx, parent_rx) = channel(CHANNEL_SIZE);
         let (child_tx, child_rx) = channel(CHANNEL_SIZE);
 
@@ -110,7 +110,7 @@ where
         );
         tokio::spawn(Self::serve(node));
 
-        NodeHandle::new(child_tx, parent_rx, NodeType::Condition, evaluator.get_name(), vec![], vec![], vec![])
+        ProcessHandle::new(child_tx, parent_rx, evaluator.get_name())
     }
 
     fn _new(
@@ -229,7 +229,7 @@ where
     }
 }
 
-impl<V, T> Node for ConditionProcess<V, T>
+impl<V, T> NodeProcess for ConditionProcess<V, T>
 where
     T: Evaluator<V> + Clone + Send + Sync + 'static,
     V: Clone + Debug + Send + Sync + Clone + 'static,

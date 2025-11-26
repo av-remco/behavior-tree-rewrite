@@ -6,14 +6,14 @@ use log::{trace, warn};
 
 use crate::bt::Ready;
 use crate::execution::executor_factory::Engine;
-use crate::{BT, conversion::converter::{BehaviorTreeMap, convert_bt}, execution::traversal::search_start, nodes_bin::{node::NodeType, node_handle::NodeHandle, node_message::{ChildMessage, FutResult, ParentMessage}, node_status::Status}};
+use crate::{BT, conversion::converter::{BehaviorTreeMap, convert_bt}, execution::traversal::search_start, nodes_bin::{node::NodeType, process_handle::ProcessHandle, node_message::{ChildMessage, FutResult, ParentMessage}, node_status::Status}};
 
 pub type FutureVec<'a> = Vec<Pin<Box<dyn Future<Output = FutResult> + Send + 'a>>>;
 
 pub(crate) struct FlatMapEngine {
-    current_node: NodeHandle,
+    current_node: ProcessHandle,
     map: BehaviorTreeMap,
-    active_conditions: Vec<NodeHandle>,
+    active_conditions: Vec<ProcessHandle>,
 }
 
 impl FlatMapEngine {
@@ -48,7 +48,7 @@ impl FlatMapEngine {
         None
     }
 
-    async fn handle_condition_trigger(&mut self, node: NodeHandle, status: bool, index: usize) -> Option<bool> {
+    async fn handle_condition_trigger(&mut self, node: ProcessHandle, status: bool, index: usize) -> Option<bool> {
         self.current_node.stop().await;
         self.stop_conditions_after_idx(index).await;
 
@@ -62,7 +62,7 @@ impl FlatMapEngine {
         None
     }
 
-    fn lookup_next(&self, node: NodeHandle, status: bool) -> Option<NodeHandle>{
+    fn lookup_next(&self, node: ProcessHandle, status: bool) -> Option<ProcessHandle>{
         self.map.get(&(node, status.into())).cloned().flatten()
     }
 
@@ -91,7 +91,7 @@ impl FlatMapEngine {
         futures
     }
 
-    async fn run_condition(mut node: NodeHandle) -> FutResult{
+    async fn run_condition(mut node: ProcessHandle) -> FutResult{
         loop {
             match node.listen().await {
                 Ok(msg) => {

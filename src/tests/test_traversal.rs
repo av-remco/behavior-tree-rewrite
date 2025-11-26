@@ -11,312 +11,412 @@ mod tests {
     use crate::execution::traversal::{search_next, search_start};
     use crate::logging::load_logger;
     use crate::nodes::action::mocking::MockAction;
-    use crate::nodes_bin::node_handle::NodeHandle;
+    use crate::nodes_bin::node::Node;
+    use crate::nodes_bin::process_handle::ProcessHandle;
     use crate::nodes_bin::node_status::Status;
-    use crate::{BT, Condition, Failure, Fallback, Sequence, Success, Wait};
+    use crate::{BT, Condition, Failure, Success, Wait};
     use logtest::Logger;
 
     // * Tests for search_down()
     #[tokio::test]
     async fn test_auto_failure() {
+        let mut map = HashMap::new();
         let action1 = Failure::new();
-        let bt = BT::new().root(action1.clone()).name("test_tree");
+        let id1 = "1".to_string();
+
+        map.insert(id1.clone(), action1);
+
+        let root = Node::Action(id1);
+        let bt = BT::new().map(map).root(root.clone()).name("test_tree");
 
         let trace = search_start(&bt);
 
         assert_eq!(trace, vec![
-            action1,                  // action visited
+            root,                  // action visited
         ]);
     }
 
     #[tokio::test]
     async fn test_auto_success() {
+        let mut map = HashMap::new();
+
         let action1 = Success::new();
-        let bt = BT::new().root(action1.clone()).name("test_tree");
+        let id1 = "1".to_string();
+
+        map.insert(id1.clone(), action1);
+
+        let root = Node::Action(id1.clone());
+        let bt = BT::new().map(map).root(root.clone()).name("test_tree");
 
         let trace = search_start(&bt);
 
-        assert_eq!(trace, vec![
-            action1,
-        ]);
+        assert_eq!(trace, vec![root]);
     }
 
     #[tokio::test]
     async fn test_condition_true_stops_at_condition() {
-        let cond = Condition::new("cond1", Handle::new(5), |x| x > 0);
-        let bt = BT::new().root(cond.clone()).name("test_tree");
+        let mut map = HashMap::new();
+
+        let id1 = "cond1".to_string();
+        let cond = Condition::new(&id1, Handle::new(5), |x| x > 0);
+
+        map.insert(id1.clone(), cond);
+
+        let root = Node::Condition(id1.clone());
+        let bt = BT::new().map(map).root(root.clone()).name("test_tree");
 
         let trace = search_start(&bt);
 
-        assert_eq!(trace, vec![
-            cond,                    // condition entered → stops
-        ]);
+        assert_eq!(trace, vec![root]);
     }
 
     #[tokio::test]
     async fn test_sequence_hits_first_action() {
+        let mut map = HashMap::new();
+
         let a1 = Success::new();
         let a2 = Success::new();
-        let seq = Sequence::new(vec![a1.clone(), a2.clone()]);
 
-        let bt = BT::new().root(seq.clone()).name("test_tree");
+        let id1 = "a1".to_string();
+        let id2 = "a2".to_string();
+
+        map.insert(id1.clone(), a1);
+        map.insert(id2.clone(), a2);
+
+        let root = Node::Sequence(vec![
+            Node::Action(id1.clone()),
+            Node::Action(id2.clone()),
+        ]);
+
+        let bt = BT::new().map(map).root(root.clone()).name("test_tree");
 
         let trace = search_start(&bt);
 
         assert_eq!(trace, vec![
-            seq,                     // enter sequence
-            a1,                      // first actionable child
+            root.clone(),
+            Node::Action(id1),
         ]);
     }
 
     #[tokio::test]
     async fn test_sequence_condition_stops_sequence() {
-        let cond = Condition::new("cond_seq", Handle::new(0), |x| x > 0);
+        let mut map = HashMap::new();
+
+        let cond = Condition::new("cond", Handle::new(0), |x| x > 0);
         let a2 = Success::new();
 
-        let seq = Sequence::new(vec![cond.clone(), a2.clone()]);
-        let bt = BT::new().root(seq.clone()).name("test_tree");
+        map.insert("cond".into(), cond);
+        map.insert("a2".into(), a2);
+
+        let root = Node::Sequence(vec![
+            Node::Condition("cond".into()),
+            Node::Action("a2".into()),
+        ]);
+
+        let bt = BT::new().map(map).root(root.clone()).name("test_tree");
 
         let trace = search_start(&bt);
 
         assert_eq!(trace, vec![
-            seq,                     // enter sequence
-            cond,                    // condition → STOP
+            root.clone(),
+            Node::Condition("cond".into()),
         ]);
     }
 
     #[tokio::test]
     async fn test_fallback_hits_first_action() {
+        let mut map = HashMap::new();
+
         let fail1 = Failure::new();
         let succ = Success::new();
 
-        let fb = Fallback::new(vec![fail1.clone(), succ.clone()]);
-        let bt = BT::new().root(fb.clone()).name("test_tree");
+        map.insert("fail1".into(), fail1);
+        map.insert("succ".into(), succ);
+
+        let root = Node::Fallback(vec![
+            Node::Action("fail1".into()),
+            Node::Action("succ".into()),
+        ]);
+
+        let bt = BT::new().map(map).root(root.clone()).name("test_tree");
 
         let trace = search_start(&bt);
 
         assert_eq!(trace, vec![
-            fb,                      // enter fallback
-            fail1,                   // first child
+            root.clone(),
+            Node::Action("fail1".into()),
         ]);
     }
 
     #[tokio::test]
     async fn test_fallback_condition_as_first_child() {
-        let cond = Condition::new("cond_fb", Handle::new(0), |x| x > 0);
-        let a2  = Success::new();
+        let mut map = HashMap::new();
 
-        let fb = Fallback::new(vec![cond.clone(), a2.clone()]);
-        let bt = BT::new().root(fb.clone()).name("test_tree");
+        let cond = Condition::new("cond_fb", Handle::new(0), |x| x > 0);
+        let succ = Success::new();
+
+        map.insert("cond_fb".into(), cond);
+        map.insert("a2".into(), succ);
+
+        let root = Node::Fallback(vec![
+            Node::Condition("cond_fb".into()),
+            Node::Action("a2".into()),
+        ]);
+
+        let bt = BT::new().map(map).root(root.clone()).name("test_tree");
 
         let trace = search_start(&bt);
 
         assert_eq!(trace, vec![
-            fb,                      // enter fallback
-            cond,                    // stops → fallback does NOT continue
+            root.clone(),
+            Node::Condition("cond_fb".into()),
         ]);
     }
 
     #[tokio::test]
     async fn test_nested_sequence_and_fallback() {
-        // Sequence:
-        //   cond  → stops (no fallback entered)
-        //   fallback(fail, act)
-        //
-        // Condition prevents entering fallback.
+        let mut map = HashMap::new();
 
         let cond = Condition::new("cond_nested", Handle::new(1), |x| x > 0);
-
         let fail = Failure::new();
         let act = Success::new();
-        let fb = Fallback::new(vec![fail.clone(), act.clone()]);
 
-        let seq = Sequence::new(vec![cond.clone(), fb.clone()]);
-        let bt = BT::new().root(seq.clone()).name("test_tree");
+        map.insert("cond_nested".into(), cond);
+        map.insert("fail".into(), fail);
+        map.insert("act".into(), act);
+
+        let fb = Node::Fallback(vec![
+            Node::Action("fail".into()),
+            Node::Action("act".into()),
+        ]);
+
+        let root = Node::Sequence(vec![
+            Node::Condition("cond_nested".into()),
+            fb.clone(),
+        ]);
+
+        let bt = BT::new().map(map).root(root.clone()).name("test_tree");
 
         let trace = search_start(&bt);
 
         assert_eq!(trace, vec![
-            seq,                     // enter sequence
-            cond,                    // stops → fallback never visited
+            root.clone(),
+            Node::Condition("cond_nested".into()),
         ]);
     }
 
     #[tokio::test]
     async fn test_fallback_sequence_condition_then_action() {
-        // fallback:
-        //   sequence(cond → action)
-        //   action2
-        //
-        // Sequence will stop at condition → so fallback won't go deeper.
+        let mut map = HashMap::new();
 
         let cond = Condition::new("cond1", Handle::new(3), |x| x > 0);
-
         let a1 = Success::new();
-        let seq = Sequence::new(vec![cond.clone(), a1.clone()]);
-
         let a2 = Success::new();
-        let fb = Fallback::new(vec![seq.clone(), a2.clone()]);
 
-        let bt = BT::new().root(fb.clone()).name("test_tree");
+        map.insert("cond1".into(), cond);
+        map.insert("a1".into(), a1);
+        map.insert("a2".into(), a2);
+
+        let seq = Node::Sequence(vec![
+            Node::Condition("cond1".into()),
+            Node::Action("a1".into()),
+        ]);
+
+        let root = Node::Fallback(vec![
+            seq.clone(),
+            Node::Action("a2".into()),
+        ]);
+
+        let bt = BT::new().map(map).root(root.clone()).name("test_tree");
 
         let trace = search_start(&bt);
 
         assert_eq!(trace, vec![
-            fb,                      // enter fallback
-            seq,                     // enter sequence
-            cond,                    // stops sequence
+            root.clone(),
+            seq.clone(),
+            Node::Condition("cond1".into()),
         ]);
     }
 
+    // ---------- search_next tests ----------
 
-    // * Tests for search_next(&bt, )
     #[tokio::test]
     async fn test_search_next_sequence_continue() {
-        // sequence: cond  → a1 → a2
-        // Condition succeeds, so sequence continues to first action.
+        let mut map = HashMap::new();
 
         let cond = Condition::new("cond1", Handle::new(1), |x| x > 0);
         let a1 = Success::new();
         let a2 = Success::new();
 
-        let seq = Sequence::new(vec![cond.clone(), a1.clone(), a2.clone()]);
-        let bt = BT::new().root(seq.clone()).name("test_tree");
+        map.insert("cond1".into(), cond);
+        map.insert("a1".into(), a1);
+        map.insert("a2".into(), a2);
 
-        // First search: stops at condition
+        let root = Node::Sequence(vec![
+            Node::Condition("cond1".into()),
+            Node::Action("a1".into()),
+            Node::Action("a2".into()),
+        ]);
+
+        let bt = BT::new().map(map).root(root.clone()).name("test_tree");
+
         let start = search_start(&bt);
-        assert_eq!(start, vec![seq.clone(), cond.clone()]);
+        assert_eq!(start, vec![
+            root.clone(),
+            Node::Condition("cond1".into()),
+        ]);
 
-        // Now simulate the condition result
-        let next = search_next(&bt, start.clone(), &Status::Success);
+        let next = search_next(start.clone(), &Status::Success);
 
         assert_eq!(next, vec![
-            seq.clone(),
-            a1.clone(),   // first action after successful condition
+            root.clone(),
+            Node::Action("a1".into()),
         ]);
     }
 
     #[tokio::test]
     async fn test_search_next_sequence_stops_on_failure() {
-        // sequence: cond → a1
-        // Condition fails => sequence halts, next search should NOT go to a1.
+        let mut map = HashMap::new();
 
         let cond = Condition::new("cond1", Handle::new(10), |x| x == 0);
         let a1 = Success::new();
 
-        let seq = Sequence::new(vec![cond.clone(), a1.clone()]);
-        let bt = BT::new().root(seq.clone()).name("test_tree");
+        map.insert("cond1".into(), cond);
+        map.insert("a1".into(), a1);
+
+        let root = Node::Sequence(vec![
+            Node::Condition("cond1".into()),
+            Node::Action("a1".into()),
+        ]);
+
+        let bt = BT::new().map(map).root(root.clone()).name("test_tree");
 
         let start = search_start(&bt);
-        assert_eq!(start, vec![seq.clone(), cond.clone()]);
+        assert_eq!(start, vec![
+            root.clone(),
+            Node::Condition("cond1".into()),
+        ]);
 
-        // Condition failed
-        let next = search_next(&bt, start.clone(), &Status::Failure);
+        let next = search_next(start.clone(), &Status::Failure);
 
-        // Sequence terminates → no deeper path
         assert_eq!(next, vec![]);
     }
 
     #[tokio::test]
     async fn test_search_next_fallback_continue_on_failure() {
-        // fallback:
-        //   cond (fails)
-        //   a1 (fallback continues)
+        let mut map = HashMap::new();
 
         let cond = Condition::new("c1", Handle::new(3), |x| x == 0);
         let a1 = Success::new();
 
-        let fb = Fallback::new(vec![cond.clone(), a1.clone()]);
-        let bt = BT::new().root(fb.clone()).name("test_tree");
+        map.insert("c1".into(), cond);
+        map.insert("a1".into(), a1);
+
+        let root = Node::Fallback(vec![
+            Node::Condition("c1".into()),
+            Node::Action("a1".into()),
+        ]);
+
+        let bt = BT::new().map(map).root(root.clone()).name("test_tree");
 
         let start = search_start(&bt);
-        assert_eq!(start, vec![fb.clone(), cond.clone()]);
+        assert_eq!(start, vec![
+            root.clone(),
+            Node::Condition("c1".into()),
+        ]);
 
-        // cond fails => fallback continues to next child
-        let next = search_next(&bt, start.clone(), &Status::Failure);
+        let next = search_next(start.clone(), &Status::Failure);
 
         assert_eq!(next, vec![
-            fb.clone(),
-            a1.clone(),
+            root.clone(),
+            Node::Action("a1".into()),
         ]);
     }
 
     #[tokio::test]
     async fn test_search_next_fallback_stop_on_success() {
-        // fallback:
-        //   cond → a1
-        //
-        // Condition succeeds → fallback does NOT continue to a1.
+        let mut map = HashMap::new();
 
         let cond = Condition::new("c1", Handle::new(2), |x| x > 0);
         let a1 = Success::new();
 
-        let fb = Fallback::new(vec![cond.clone(), a1.clone()]);
-        let bt = BT::new().root(fb.clone()).name("test_tree");
+        map.insert("c1".into(), cond);
+        map.insert("a1".into(), a1);
+
+        let root = Node::Fallback(vec![
+            Node::Condition("c1".into()),
+            Node::Action("a1".into()),
+        ]);
+
+        let bt = BT::new().map(map).root(root.clone()).name("test_tree");
 
         let start = search_start(&bt);
-        assert_eq!(start, vec![fb.clone(), cond.clone()]);
+        assert_eq!(start, vec![
+            root.clone(),
+            Node::Condition("c1".into()),
+        ]);
 
-        // cond success => fallback stops
-        let next = search_next(&bt, start.clone(), &Status::Success);
+        let next = search_next(start.clone(), &Status::Success);
 
         assert_eq!(next, vec![]);
     }
 
     #[tokio::test]
     async fn test_search_next_nested() {
-        // fb:
-        //   seq(cond → a1)
-        //   a2
-        //
-        // search_start hits condition inside sequence
-        // next after FAILURE should go to fallback's second child a2
+        let mut map = HashMap::new();
 
         let cond = Condition::new("c1", Handle::new(5), |x| x < 0);
         let a1 = Success::new();
-        let seq = Sequence::new(vec![cond.clone(), a1.clone()]);
-
         let a2 = Success::new();
-        let fb = Fallback::new(vec![seq.clone(), a2.clone()]);
 
-        let bt = BT::new().root(fb.clone()).name("test_tree");
+        map.insert("c1".into(), cond);
+        map.insert("a1".into(), a1);
+        map.insert("a2".into(), a2);
+
+        let seq = Node::Sequence(vec![
+            Node::Condition("c1".into()),
+            Node::Action("a1".into()),
+        ]);
+
+        let root = Node::Fallback(vec![
+            seq.clone(),
+            Node::Action("a2".into()),
+        ]);
+
+        let bt = BT::new().map(map).root(root.clone()).name("test_tree");
 
         let start = search_start(&bt);
         assert_eq!(start, vec![
-            fb.clone(),
+            root.clone(),
             seq.clone(),
-            cond.clone()
+            Node::Condition("c1".into()),
         ]);
 
-        // Condition fails
-        let next = search_next(&bt, start.clone(), &Status::Failure);
+        let next = search_next(start.clone(), &Status::Failure);
 
-        // fallback tries second child (a2)
         assert_eq!(next, vec![
-            fb.clone(),
-            a2.clone(),
+            root.clone(),
+            Node::Action("a2".into()),
         ]);
     }
 
     #[tokio::test]
     async fn test_search_next_on_root_returns_empty() {
-        // Root → child action
-        // search_start(&bt) stops at the first actionable node (the child)
-        //
-        // But search_next applied on a trace that only contains the root
-        // should return vec![], since there is no higher-level parent.
+        let mut map = HashMap::new();
 
         let a1 = Success::new();
+        map.insert("a1".into(), a1);
 
-        let bt = BT::new().root(a1.clone()).name("test_tree");
+        let root = Node::Action("a1".into());
+        let bt = BT::new().map(map).root(root.clone()).name("test_tree");
 
-        // Try search_next after the root returns any Status (Success or Failure)
         let fst_trace = search_start(&bt);
-        let snd_trace = search_next(&bt, fst_trace.clone(), &Status::Success);
-        let trd_trace = search_next(&bt, fst_trace.clone(), &Status::Failure);
+        let snd_trace = search_next(fst_trace.clone(), &Status::Success);
+        let trd_trace = search_next(fst_trace.clone(), &Status::Failure);
 
-        assert_eq!(fst_trace, vec![a1.clone()]);
-        assert_eq!(snd_trace, Vec::<NodeHandle>::new());
-        assert_eq!(trd_trace, Vec::<NodeHandle>::new());
+        assert_eq!(fst_trace, vec![root.clone()]);
+        assert_eq!(snd_trace, Vec::<Node>::new());
+        assert_eq!(trd_trace, Vec::<Node>::new());
     }
+
 }

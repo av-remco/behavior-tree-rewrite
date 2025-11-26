@@ -1,11 +1,14 @@
-pub trait Node: Sync + Send {
+pub trait NodeProcess: Sync + Send {
     async fn serve(self);
 }
 
-#[derive(Debug, Clone, Copy, serde::Serialize)]
-pub enum NodeType {
-    Action,
-    Condition,
-    Fallback,
-    Sequence,
+pub(crate) type ActionId = String;
+pub(crate) type ConditionId = String;
+
+#[derive(Debug, Clone, serde::Serialize, PartialEq)]
+pub enum Node {
+    Action(ActionId),
+    Condition(ConditionId),
+    Sequence(Vec<Node>),
+    Fallback(Vec<Node>),
 }

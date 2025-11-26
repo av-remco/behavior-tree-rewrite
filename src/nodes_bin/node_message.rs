@@ -1,9 +1,9 @@
-use crate::nodes_bin::{node_error::NodeError, node_handle::NodeHandle, node_status::Status};
+use crate::nodes_bin::{node_error::NodeError, process_handle::ProcessHandle, node_status::Status};
 
 #[derive(Debug)]
 pub(crate) enum FutResult {
     CurrentNode(bool),
-    Condition(NodeHandle, bool),
+    Condition(ProcessHandle, bool),
 }
 
 #[derive(PartialEq, Debug, Clone)]

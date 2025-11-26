@@ -9,7 +9,6 @@ pub use crate::{
     nodes::{
         action::{Action, Wait, Success, Failure},
         condition::Condition,
-        selector::{Sequence, Fallback},
     },
 };
 

@@ -1,13 +1,14 @@
 use std::marker::PhantomData;
 
-use crate::{execution::executor_factory::{Engine, EngineFactory, Engines}, nodes_bin::{node_handle::NodeHandle, node_index::NodeIndex}};
+use crate::{execution::executor_factory::{Engine, EngineFactory, Engines}, nodes_bin::{node::Node, node_map::NodeHandleMap}};
 
 pub(crate) const CHANNEL_SIZE: usize = 20;
 
+// TODO remove all the Option<> for Typestate with variables
 pub struct BT<T: BuildState> {
     name: String,
-    pub(crate) root: Option<NodeHandle>,
-    pub(crate) node_index: NodeIndex,
+    pub(crate) root: Option<Node>,
+    pub(crate) map: Option<NodeHandleMap>,
     engine_factory: EngineFactory,
     result: Option<bool>,
     marker: PhantomData<T>,
@@ -18,7 +19,7 @@ impl<T: BuildState> BT<T> {
         BT::<S> {
             name: self.name,
             root: self.root,
-            node_index: self.node_index,
+            map: self.map,
             engine_factory: self.engine_factory,
             result: self.result,
             marker: PhantomData,
@@ -30,7 +31,7 @@ impl<T: BuildState> BT<T> {
         BT::<S> {
             name: self.name,
             root: self.root,
-            node_index: self.node_index,
+            map: self.map,
             engine_factory: self.engine_factory,
             result: self.result,
             marker: PhantomData,
@@ -43,18 +44,22 @@ impl BT<Init> {
         Self {
             name: "Unnamed Behavior Tree".to_string(),
             root: None,
-            node_index: NodeIndex::new(vec![]),
+            map: None,
             engine_factory: EngineFactory { engine: Engines::Default },
             result: None,
             marker: PhantomData,
         }
     }
 
-    pub fn root(mut self, mut root: NodeHandle) -> BT<Ready> {
-        let handles = root.take_handles();
-        self.node_index = NodeIndex::new(handles);
+    pub fn root(mut self, root: Node) -> BT<Ready> {
         self.root = Some(root);
         self.into_state::<Ready>()
+    }
+
+    // TODO Fix state here, create better API than manually defining the mapping
+    pub fn map(mut self, map: NodeHandleMap) -> BT<Init> {
+        self.map = Some(map);
+        self
     }
 }
 
