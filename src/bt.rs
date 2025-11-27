@@ -48,7 +48,7 @@ impl BT<Init> {
             name: "Unnamed Behavior Tree".to_string(),
             root: Node::Action("Initial action".to_string()), //TODO Risky non-existant mapping here, maybe Option<..>
             map: HashMap::new(),
-            engine_factory: EngineFactory { engine: Engines::Default },
+            engine_factory: EngineFactory { engine: Engines::Dynamic },
             result: None,
             marker: PhantomData,
         }.into_state::<Building>()
@@ -63,7 +63,7 @@ impl BT<Init> {
             name: "Unnamed Behavior Tree".to_string(),
             root,
             map,
-            engine_factory: EngineFactory { engine: Engines::Default },
+            engine_factory: EngineFactory { engine: Engines::Dynamic },
             result: None,
             marker: PhantomData,
         }.into_state::<Tree>()
@@ -82,7 +82,7 @@ impl BT<Init> {
             name: "Unnamed Behavior Tree".to_string(),
             root,
             map,
-            engine_factory: EngineFactory { engine: Engines::Default },
+            engine_factory: EngineFactory { engine: Engines::Dynamic },
             result: None,
             marker: PhantomData,
         }.into_state::<Tree>()
@@ -100,7 +100,7 @@ impl BT<Init> {
             name: "Unnamed Behavior Tree".to_string(),
             root,
             map,
-            engine_factory: EngineFactory { engine: Engines::Default },
+            engine_factory: EngineFactory { engine: Engines::Dynamic },
             result: None,
             marker: PhantomData,
         }.into_state::<Tree>()
@@ -118,7 +118,7 @@ impl BT<Init> {
             name: "Unnamed Behavior Tree".to_string(),
             root,
             map,
-            engine_factory: EngineFactory { engine: Engines::Default },
+            engine_factory: EngineFactory { engine: Engines::Dynamic },
             result: None,
             marker: PhantomData,
         }.into_state::<Tree>()
@@ -152,8 +152,9 @@ impl<T: NotDone> BT<T> {
         self
     }
 
-    pub fn set_engine(&mut self, engine: Engines) {
+    pub fn set_engine(mut self, engine: Engines) -> Self {
         self.engine_factory.set(engine);
+        self
     }
 }
 

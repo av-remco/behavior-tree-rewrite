@@ -53,11 +53,6 @@ impl FlatMapEngine {
     }
 
     async fn handle_condition_trigger(&mut self, node: Node, status: bool, index: usize) -> Option<bool> {
-        let Some(id) = node.get_id() else {
-            panic!("Unexpected node type");
-        };
-        // TODO: Handle Result here
-        let _ = self.comms.send(id, ChildMessage::Stop).await;
         self.stop_conditions_after_idx(index).await;
 
         let Some(next_node) = self.lookup_next(node, status) else {
@@ -190,7 +185,7 @@ impl Engine for FlatMapEngine {
             self.start_current_node().await;
 
             let futures: FutureVec = self.build_listener_futures();
-            let (result, index, _) = select_all(futures).await;
+            let (result, index, _) = select_all(futures).await; // TODO check if futures != empty, select_all panics
             trace!("Future with index {:?} returned: {:?}", index,result);
 
             if let Some(res) = match result {

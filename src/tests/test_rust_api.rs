@@ -31,7 +31,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_execute_simple_success() {
+    async fn test_simple_action_seq() {
         let result = BT::new()
             .name("test_tree")
             .root(
@@ -41,7 +41,8 @@ mod tests {
                     BT::action(TestExecutor::new())
                 ])
             )
-            .run().await;
-        assert_eq!(result.result(), true);
+            .run().await
+            .result();
+        assert_eq!(result, true);
     }
 }

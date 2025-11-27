@@ -32,7 +32,7 @@ fn rec_search_up(mut trace: Vec<Node>, result: &Status, previous_node: Option<No
     };
 
     match (&node, result) {
-        // If previous node was not the last child, select next child and search down
+        // If previous node was not the last child of a selector, select next child and search down
         (Node::Fallback(children), Status::Failure) | 
         (Node::Sequence(children), Status::Success) => {
             if let Some(previous_node) = previous_node {
