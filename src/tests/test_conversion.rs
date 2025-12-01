@@ -9,7 +9,6 @@ mod tests {
     use crate::bt::Ready;
     use crate::conversion::converter::convert_bt;
     use crate::execution::traversal::{search_next, search_start};
-    use crate::logging::load_logger;
     use crate::nodes::action::mocking::MockAction;
     use crate::nodes_bin::node::Node;
     use crate::nodes_bin::process_handle::ProcessHandle;

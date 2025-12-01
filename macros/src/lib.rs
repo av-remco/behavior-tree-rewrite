@@ -149,7 +149,7 @@ pub fn bt_condition(_attr: TokenStream, item: TokenStream) -> TokenStream {
             }
 
             async fn evaluate(&mut self, val: #handle_type) -> Result<bool, Error> {
-                #fn_name( val, #(, #call_args )* ).await
+                #fn_name( val #(, #call_args )* ).await
             }
         }
 

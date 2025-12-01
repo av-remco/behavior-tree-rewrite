@@ -9,7 +9,7 @@ mod tests {
     use tokio::time::sleep;
     use macros::{bt_action, bt_condition};
 
-    use crate::{BT, Condition, Failure, Success, Wait, bt::Ready, logging::load_logger, nodes::{action::{Executor, mocking::MockAction}, condition::Evaluator}, nodes_bin::{node::Node, node_status::Status}};
+    use crate::{BT, Condition, Failure, Success, Wait, bt::Ready, nodes::{action::{Executor, mocking::MockAction}, condition::Evaluator}, nodes_bin::{node::Node, node_status::Status}};
 
     struct TestExecutor {}
 
@@ -103,7 +103,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_macro_handle_args() {
-        load_logger();
         let handle = Handle::new(100);
         let result = BT::new()
             .name("test_tree")
@@ -127,7 +126,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_macro_cond_static() {
-        load_logger();
         let handle = Handle::new(true);
         let result = BT::new()
             .name("test_tree")
@@ -151,7 +149,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_macro_cond_args() {
-        load_logger();
         let handle = Handle::new(true);
         let result = BT::new()
             .name("test_tree")
@@ -165,5 +162,35 @@ mod tests {
             .run().await
             .result();
         assert_eq!(result, false);
+    }
+
+    #[bt_condition]
+    async fn handle_cond(result: bool, _some: bool) -> Result<bool, Error> {
+        debug!("Triggered condition");
+        Ok(result)
+    }
+
+    #[tokio::test]
+    async fn test_macro_cond_handle() {
+        let handle = Handle::new(true);
+        let bt = BT::new()
+            .name("test_tree")
+            .root(
+                BT::seq(vec![
+                    BT::condition(handle.clone(), HandleCondEvaluator::new(true)),
+                    BT::action(BarExecutor::new(200)),
+                    BT::condition(handle.clone(), HandleCondEvaluator::new(false)),
+                ])
+            );
+        
+        let (bt, _) = tokio::join!(
+            bt.test_into_state().run(),
+            async {
+                sleep(Duration::from_millis(100)).await;
+                handle.set(false).await;
+            }
+        );
+
+        assert_eq!(bt.result(), false);
     }
 }
