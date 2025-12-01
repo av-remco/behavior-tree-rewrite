@@ -71,13 +71,13 @@ impl BT<Init> {
 
     pub fn condition<V,T>(handle: Handle<V>, inner: T) -> BT<Tree> 
     where
-        V: Clone + std::fmt::Debug + Send + Sync + Clone + 'static,
-        T: Evaluator<V> + Fn(V) -> bool + Sync + Send + Clone + 'static,
+        V: Clone + std::fmt::Debug + Send + Sync + 'static,
+        T: Evaluator<V> + Sync + Send + Clone + 'static,
     {
         let uid = Uuid::new_v4();
         let root = Node::Condition(uid.into());
         let mut map = HashMap::new();
-        map.insert(uid.into(), Condition::new(uid.to_string(),handle, inner));
+        map.insert(uid.into(), Condition::new_from(inner, handle));
         Self {
             name: "Unnamed Behavior Tree".to_string(),
             root,

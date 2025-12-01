@@ -7,9 +7,9 @@ mod tests {
     use anyhow::{Error, Ok, Result};
     use log::debug;
     use tokio::time::sleep;
-    use macros::bt_action;
+    use macros::{bt_action, bt_condition};
 
-    use crate::{BT, Condition, Failure, Success, Wait, bt::Ready, logging::load_logger, nodes::action::{Executor, mocking::MockAction}, nodes_bin::{node::Node, node_status::Status}};
+    use crate::{BT, Condition, Failure, Success, Wait, bt::Ready, logging::load_logger, nodes::{action::{Executor, mocking::MockAction}, condition::Evaluator}, nodes_bin::{node::Node, node_status::Status}};
 
     struct TestExecutor {}
 
@@ -117,5 +117,53 @@ mod tests {
             .run().await
             .result();
         assert_eq!(result, true);
+    }
+
+    #[bt_condition]
+    async fn foo_cond(_: bool) -> Result<bool, Error> {
+        debug!("Triggered condition");
+        Ok(true)
+    }
+
+    #[tokio::test]
+    async fn test_macro_cond_static() {
+        load_logger();
+        let handle = Handle::new(true);
+        let result = BT::new()
+            .name("test_tree")
+            .root(
+                BT::seq(vec![
+                    BT::condition(handle.clone(), FooCondEvaluator::new()),
+                    BT::condition(handle.clone(), FooCondEvaluator::new()),
+                    BT::condition(handle.clone(), FooCondEvaluator::new()),
+                ])
+            )
+            .run().await
+            .result();
+        assert_eq!(result, true);
+    }
+
+    #[bt_condition]
+    async fn bar_cond(_: bool, result: bool) -> Result<bool, Error> {
+        debug!("Triggered condition");
+        Ok(result)
+    }
+
+    #[tokio::test]
+    async fn test_macro_cond_args() {
+        load_logger();
+        let handle = Handle::new(true);
+        let result = BT::new()
+            .name("test_tree")
+            .root(
+                BT::seq(vec![
+                    BT::condition(handle.clone(), BarCondEvaluator::new(true)),
+                    BT::condition(handle.clone(), BarCondEvaluator::new(true)),
+                    BT::condition(handle.clone(), BarCondEvaluator::new(false)),
+                ])
+            )
+            .run().await
+            .result();
+        assert_eq!(result, false);
     }
 }
