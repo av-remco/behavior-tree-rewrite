@@ -2,13 +2,12 @@ pub trait NodeProcess: Sync + Send {
     async fn serve(self);
 }
 
-pub(crate) type ActionId = String;
-pub(crate) type ConditionId = String;
+pub(crate) type NodeId = String;
 
 #[derive(Debug, Clone, serde::Serialize, PartialEq, Eq, Hash)]
 pub enum Node {
-    Action(ActionId),
-    Condition(ConditionId),
+    Action(NodeId),
+    Condition(NodeId),
     Sequence(Vec<Node>),
     Fallback(Vec<Node>),
 }
