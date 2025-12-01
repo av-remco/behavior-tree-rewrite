@@ -5,3 +5,4 @@
 *.xml
 github
 *.pub
+/macros/target
