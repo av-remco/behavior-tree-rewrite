@@ -4,22 +4,21 @@ use log::{trace, warn};
 
 use crate::bt::Ready;
 use crate::execution::engine_factory::Engine;
-use crate::execution::flat_static_engine::FutureVec;
-use crate::execution::process_comms::ProcessComms;
+use crate::execution::process_comms::{FutureVec, ProcessComms};
 use crate::execution::traversal::search_next;
 use crate::nodes_bin::node::Node;
 use crate::nodes_bin::process_handle::ProcessHandle;
 use crate::{BT, execution::traversal::search_start, nodes_bin::{node_message::{ChildMessage, FutResult, ParentMessage}, node_status::Status}};
 
-pub(crate) struct FlatDynamicEngine {
+pub(crate) struct DynamicEngine {
     current_node: Node,
     current_trace: Vec<Node>,
     active_conditions: Vec<(Node, Vec<Node>)>,
     comms: ProcessComms,
 }
 
-impl FlatDynamicEngine {
-    pub(crate) fn new(tree: &BT<Ready>) -> FlatDynamicEngine {
+impl DynamicEngine {
+    pub(crate) fn new(tree: &BT<Ready>) -> DynamicEngine {
         let current_trace = search_start(&tree);
         let current_node = current_trace
             .last()
@@ -183,7 +182,7 @@ impl FlatDynamicEngine {
     }
 }
 
-impl Engine for FlatDynamicEngine {
+impl Engine for DynamicEngine {
     async fn run(&mut self) -> bool {
         loop {
             self.start_current_node().await;

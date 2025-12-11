@@ -1,26 +1,24 @@
-use std::pin::Pin;
-
 use futures::future::select_all;
-use futures::{Future, FutureExt};
+use futures::FutureExt;
 use log::{trace, warn};
 
 use crate::bt::Ready;
 use crate::execution::engine_factory::Engine;
-use crate::execution::process_comms::ProcessComms;
+use crate::execution::process_comms::{FutureVec, ProcessComms};
 use crate::nodes_bin::process_handle::ProcessHandle;
-use crate::{BT, conversion::converter::{BehaviorTreeMap, convert_bt}, execution::traversal::search_start, nodes_bin::{node::Node, node_message::{ChildMessage, FutResult, ParentMessage}, node_status::Status}};
+use crate::{BT, execution::{traversal::search_start, static_engine::converter::{BehaviorTreeMap, convert_bt}}, nodes_bin::{node::Node, node_message::{ChildMessage, FutResult, ParentMessage}, node_status::Status}};
 
-pub type FutureVec<'a> = Vec<Pin<Box<dyn Future<Output = FutResult> + Send + 'a>>>;
 
-pub(crate) struct FlatMapEngine {
+
+pub(crate) struct StaticEngine {
     current_node: Node,
     map: BehaviorTreeMap,
     active_conditions: Vec<Node>,
     comms: ProcessComms,
 }
 
-impl FlatMapEngine {
-    pub(crate) fn new(tree: &BT<Ready>) -> FlatMapEngine {
+impl StaticEngine {
+    pub(crate) fn new(tree: &BT<Ready>) -> StaticEngine {
         let current_node = search_start(tree)
             .last()
             .cloned()
@@ -179,7 +177,7 @@ impl FlatMapEngine {
     }
 }
 
-impl Engine for FlatMapEngine {
+impl Engine for StaticEngine {
     async fn run(&mut self) -> bool {
         loop {
             self.start_current_node().await;

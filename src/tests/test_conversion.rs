@@ -7,7 +7,7 @@ mod tests {
     use std::collections::HashMap;
     use tokio::time::{Duration, sleep};
     use crate::bt::Ready;
-    use crate::conversion::converter::convert_bt;
+    use crate::execution::static_engine::converter::convert_bt;
     use crate::execution::traversal::{search_next, search_start};
     use crate::nodes::action::mocking::MockAction;
     use crate::nodes_bin::node::Node;

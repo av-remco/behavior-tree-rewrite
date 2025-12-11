@@ -3,15 +3,14 @@ use std::{collections::HashMap, marker::PhantomData};
 use actify::Handle;
 use uuid::Uuid;
 
-use crate::{Action, Condition, execution::engine_factory::{Engine, EngineFactory, Engines}, nodes::{action::Executor, condition::Evaluator}, nodes_bin::{node::Node, node_map::NodeHandleMap}};
+use crate::{Action, Condition, execution::engine_factory::{Engine, EngineFactory, Engines}, nodes::{action::Executor, condition::Evaluator}, nodes_bin::{node::Node, node_map::NodeIdToProcessHandleMap}};
 
 pub(crate) const CHANNEL_SIZE: usize = 20;
 
-// TODO remove all the Option<> for Typestate with variables
 pub struct BT<T: State> {
     name: String,
     pub(crate) root: Node,
-    pub(crate) map: NodeHandleMap,
+    pub(crate) map: NodeIdToProcessHandleMap,
     engine_factory: EngineFactory,
     result: Option<bool>,
     marker: PhantomData<T>,
@@ -43,7 +42,7 @@ impl<T: State> BT<T> {
 }
 
 impl BT<Init> {
-    pub fn new() -> BT<Building> {
+    pub fn new() -> BT<Preparing> {
         Self {
             name: "Unnamed Behavior Tree".to_string(),
             root: Node::Action("Initial action".to_string()), //TODO Risky non-existant mapping here, maybe Option<..>
@@ -51,25 +50,22 @@ impl BT<Init> {
             engine_factory: EngineFactory { engine: Engines::Dynamic },
             result: None,
             marker: PhantomData,
-        }.into_state::<Building>()
+        }.into_state::<Preparing>()
     }
 
-    pub fn action<T: Executor + Send + Sync + 'static>(inner: T) -> BT<Tree>{
+    pub fn action<T: Executor + Send + Sync + 'static>(inner: T) -> BT<Builder>{
         let uid = Uuid::new_v4();
         let root = Node::Action(uid.into());
         let mut map = HashMap::new();
         map.insert(uid.into(), Action::new(inner));
-        Self {
-            name: "Unnamed Behavior Tree".to_string(),
-            root,
-            map,
-            engine_factory: EngineFactory { engine: Engines::Dynamic },
-            result: None,
-            marker: PhantomData,
-        }.into_state::<Tree>()
+        
+        let mut bt = BT::new();
+        bt.root = root;
+        bt.map = map;
+        bt.into_state::<Builder>()
     }
 
-    pub fn condition<V,T>(handle: Handle<V>, inner: T) -> BT<Tree> 
+    pub fn condition<V,T>(handle: Handle<V>, inner: T) -> BT<Builder> 
     where
         V: Clone + std::fmt::Debug + Send + Sync + 'static,
         T: Evaluator<V> + Sync + Send + Clone + 'static,
@@ -78,17 +74,14 @@ impl BT<Init> {
         let root = Node::Condition(uid.into());
         let mut map = HashMap::new();
         map.insert(uid.into(), Condition::new_from(inner, handle));
-        Self {
-            name: "Unnamed Behavior Tree".to_string(),
-            root,
-            map,
-            engine_factory: EngineFactory { engine: Engines::Dynamic },
-            result: None,
-            marker: PhantomData,
-        }.into_state::<Tree>()
+        
+        let mut bt = BT::new();
+        bt.root = root;
+        bt.map = map;
+        bt.into_state::<Builder>()
     }
 
-    pub fn seq(children: Vec<BT<Tree>>) -> BT<Tree>{
+    pub fn seq(children: Vec<BT<Builder>>) -> BT<Builder>{
         let mut map = HashMap::new();
         let mut node_children = vec![];
         for child in children {
@@ -96,17 +89,14 @@ impl BT<Init> {
             node_children.push(child.root);
         }
         let root = Node::Sequence(node_children);
-        Self {
-            name: "Unnamed Behavior Tree".to_string(),
-            root,
-            map,
-            engine_factory: EngineFactory { engine: Engines::Dynamic },
-            result: None,
-            marker: PhantomData,
-        }.into_state::<Tree>()
+        
+        let mut bt = BT::new();
+        bt.root = root;
+        bt.map = map;
+        bt.into_state::<Builder>()
     }
 
-    pub fn fb(children: Vec<BT<Tree>>) -> BT<Tree>{
+    pub fn fb(children: Vec<BT<Builder>>) -> BT<Builder>{
         let mut map = HashMap::new();
         let mut node_children = vec![];
         for child in children {
@@ -114,19 +104,16 @@ impl BT<Init> {
             node_children.push(child.root);
         }
         let root = Node::Fallback(node_children);
-        Self {
-            name: "Unnamed Behavior Tree".to_string(),
-            root,
-            map,
-            engine_factory: EngineFactory { engine: Engines::Dynamic },
-            result: None,
-            marker: PhantomData,
-        }.into_state::<Tree>()
+        
+        let mut bt = BT::new();
+        bt.root = root;
+        bt.map = map;
+        bt.into_state::<Builder>()
     }
 }
 
-impl BT<Building> {
-    pub fn root(mut self, tree: BT<Tree>) -> BT<Ready> {
+impl BT<Preparing> {
+    pub fn root(mut self, tree: BT<Builder>) -> BT<Ready> {
         self.root = tree.root;
         self.map = tree.map;
         self.into_state::<Ready>()
@@ -139,8 +126,7 @@ impl BT<Building> {
     }
 
     #[cfg(test)]
-    // TODO Fix state here, create better API than manually defining the mapping
-    pub fn test_insert_map(mut self, map: NodeHandleMap) -> BT<Building> {
+    pub fn test_insert_map(mut self, map: NodeIdToProcessHandleMap) -> BT<Preparing> {
         self.map.extend(map);
         self
     }
@@ -179,19 +165,19 @@ impl BT<Done> {
 pub trait State {}
 pub trait NotDone {}
 
-// State transitions: Init -> new() -> Building -> root() -> Ready -> run() -> Done
+// State transitions: Init -> new() -> Preparing -> root() -> Ready -> run() -> Done
 pub struct Init;
-pub struct Building;
+pub struct Preparing;
 pub struct Ready;
 pub struct Done;
 
-// Seperate for tree construction macros: Init -> Tree via action()/condition()/fb()/seq(). Is the argument for root()
-pub struct Tree;
+// Seperate for tree construction macros: Init -> Builder via action()/condition()/fb()/seq(). Is the argument for root()
+pub struct Builder;
 
 impl NotDone for Init {}
-impl NotDone for Building {}
+impl NotDone for Preparing {}
 impl NotDone for Ready {}
 impl<T: NotDone> State for T {}
 impl State for Done {}
 
-impl State for Tree {}
+impl State for Builder {}

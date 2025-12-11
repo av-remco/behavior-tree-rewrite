@@ -1,3 +1,4 @@
 use crate::nodes_bin::process_handle::ProcessHandle;
 
-pub type NodeHandleMap = std::collections::HashMap<String, ProcessHandle>;
+// Maps node.id to its ProcessHandle
+pub type NodeIdToProcessHandleMap = std::collections::HashMap<String, ProcessHandle>;

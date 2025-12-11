@@ -1,5 +1,6 @@
 use crate::nodes_bin::{node_error::NodeError, node::Node, node_status::Status};
 
+// Result of listening to the current action and all active conditions
 #[derive(Debug)]
 pub(crate) enum FutResult {
     CurrentNode(bool),

@@ -125,7 +125,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_macro_cond_static() {
+    async fn test_macro_cond_constant() {
         let handle = Handle::new(true);
         let result = BT::new()
             .name("test_tree")
