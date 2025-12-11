@@ -45,7 +45,7 @@ impl BT<Init> {
     pub fn new() -> BT<Preparing> {
         Self {
             name: "Unnamed Behavior Tree".to_string(),
-            root: Node::Sequence(vec![]), //TODO Risky empty sequence
+            root: Node::Sequence(vec![]), // Empty sequence as default
             map: HashMap::new(),
             engine_factory: EngineFactory { engine: Engines::Dynamic },
             result: None,

@@ -1,3 +1,5 @@
+use log::warn;
+
 use crate::{BT, bt::Ready, nodes_bin::{node::Node, node_status::Status}};
 
 pub(crate) fn search_start(tree: &BT<Ready>) -> Vec<Node> {
@@ -15,7 +17,8 @@ fn search_down(node: Node, mut trace: Vec<Node>) -> Vec<Node> {
                 trace.push(node.clone());
                 search_down( child.clone(), trace)
             } else {
-                panic!("Found a selector without a child");
+                warn!("Found empty selector!");
+                vec![]
             }
         }
     }

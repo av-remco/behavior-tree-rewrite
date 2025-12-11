@@ -4,7 +4,7 @@ mod tests {
     use std::{collections::HashMap, time::Duration};
     use actify::Handle;
     use tokio::time::sleep;
-    use crate::{BT, Condition, Failure, Success, Wait, bt::Ready, execution::engine_factory::Engines, nodes::action::mocking::MockAction, nodes_bin::{node::Node, node_status::Status}};
+    use crate::{BT, Condition, Failure, Success, Wait, bt::Ready, execution::engine_factory::Engines, logging::load_logger, nodes::action::mocking::MockAction, nodes_bin::{node::Node, node_status::Status}};
 
 
     // Test for each engine type
@@ -392,4 +392,25 @@ mod tests {
         assert_eq!(bt.result(), true);
     }
 
+    #[tokio::test]
+    async fn test_execute_empty_seq() {
+        let map = HashMap::new();
+
+        let root = Node::Sequence(vec![]);
+        let bt = BT::new().test_insert_map(map).test_root(root).set_engine(ENGINE).name("test_tree");
+
+        let result = bt.test_into_state().run().await;
+        assert_eq!(result.result(), false);
+    }
+
+    #[tokio::test]
+    async fn test_execute_nested_empty_seq() {
+        let map = HashMap::new();
+
+        let root = Node::Sequence(vec![Node::Sequence(vec![])]);
+        let bt = BT::new().test_insert_map(map).test_root(root).set_engine(ENGINE).name("test_tree");
+
+        let result = bt.test_into_state().run().await;
+        assert_eq!(result.result(), false);
+    }
 }

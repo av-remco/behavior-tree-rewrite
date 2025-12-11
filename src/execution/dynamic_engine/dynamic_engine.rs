@@ -1,6 +1,6 @@
 use futures::future::select_all;
 use futures::FutureExt;
-use log::{trace, warn};
+use log::{error, trace, warn};
 
 use crate::bt::Ready;
 use crate::execution::engine_factory::Engine;
@@ -23,8 +23,7 @@ impl DynamicEngine {
         let current_node = current_trace
             .last()
             .cloned()
-            .expect("No initial node found for behavior tree"); //TODO both engines expect an initial node to be findable: check if tree is valid before doing this
-
+            .unwrap_or(Node::Sequence(vec![])); // Empty sequence as default
         Self {
             current_node,
             current_trace,
@@ -52,9 +51,14 @@ impl DynamicEngine {
     }
 
     async fn handle_condition_trigger(&mut self, status: bool, index: usize) -> Option<bool> {
+        if index >= self.active_conditions.len() {
+            error!("Given index of condition is greater than amount of running conditions!");
+            return Some(false);
+        }
+
         self.stop_conditions_after_idx(index).await;
 
-        let (_, cond_trace) = self.active_conditions[index].clone(); // TODO watch out with index < len
+        let (_, cond_trace) = self.active_conditions[index].clone();
         self.current_trace = search_next(cond_trace, &status.into());
 
         let Some(next_node) = self.current_trace.last().cloned() else {
@@ -185,9 +189,18 @@ impl DynamicEngine {
 impl Engine for DynamicEngine {
     async fn run(&mut self) -> bool {
         loop {
+            if self.current_node == Node::Sequence(vec![]) {
+                warn!("Not Running Empty Selector");
+                return false;
+            }
             self.start_current_node().await;
 
             let futures: FutureVec = self.build_listener_futures();
+            if futures.len() == 0 {
+                error!("Zero listener futures in engine!"); // This should not happen
+                return false;
+            }
+
             let (result, index, _) = select_all(futures).await;
             trace!("Future with index {:?} returned: {:?}", index,result);
 

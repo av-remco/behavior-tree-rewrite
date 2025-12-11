@@ -1,6 +1,6 @@
 use futures::future::select_all;
 use futures::FutureExt;
-use log::{trace, warn};
+use log::{error, trace, warn};
 
 use crate::bt::Ready;
 use crate::execution::engine_factory::Engine;
@@ -22,7 +22,7 @@ impl StaticEngine {
         let current_node = search_start(tree)
             .last()
             .cloned()
-            .expect("No initial node found for behavior tree");
+            .unwrap_or(Node::Sequence(vec![])); // Empty sequence as default
 
         let map = convert_bt(tree);
 
@@ -180,10 +180,20 @@ impl StaticEngine {
 impl Engine for StaticEngine {
     async fn run(&mut self) -> bool {
         loop {
+            if self.current_node == Node::Sequence(vec![]) {
+                warn!("Not Running Empty Selector");
+                return false;
+            }
+
             self.start_current_node().await;
 
             let futures: FutureVec = self.build_listener_futures();
-            let (result, index, _) = select_all(futures).await; // TODO check if futures != empty, select_all panics
+            if futures.len() == 0 {
+                error!("Zero listener futures in engine!"); // This should not happen
+                return false;
+            }
+            
+            let (result, index, _) = select_all(futures).await;
             trace!("Future with index {:?} returned: {:?}", index,result);
 
             if let Some(res) = match result {
