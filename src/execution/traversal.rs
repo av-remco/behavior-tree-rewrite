@@ -46,7 +46,7 @@ fn search_up(mut trace: Vec<Node>, result: &Status, previous_node: Option<Node>)
                 }
             }
         },
-        (_,_) => ()
+        (Node::Action(_) | Node::Condition(_) | Node::Sequence(_) | Node::Fallback(_),_) => ()
     }
     search_up(trace, result, Some(node))
 }
